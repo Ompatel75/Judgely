@@ -1,13 +1,34 @@
-﻿const API_URL = window.location.origin + "/api";
+const API_URL = window.location.origin + "/api";
 let currentToken = null;
 let currentUser = null;
 let authMode = 'login'; // login or register
 let selectedProblemId = null;
+let currentProblemTitle = null;
 let currentSubmissionId = null;
 let pollInterval = null;
 
 // Global AI Generated Problem Cache for Admin review
 let currentAIGeneratedProblem = null;
+
+// Persistent Floating AI Chat state
+let floatingAIChatHistory = [];
+
+// Markdown Renderer Helper
+function renderMarkdown(text) {
+    if (!text) return '';
+    try {
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(text);
+        }
+    } catch (e) {}
+    // Fallback simple renderer if marked script is offline
+    return text
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
 
 // --- UI Navigation & Auth ---
 
@@ -23,12 +44,14 @@ function switchAuthTab(mode) {
 
 function showDashboard() {
     document.getElementById('auth-section').classList.add('hidden');
+    document.getElementById('profile-section').classList.add('hidden');
     document.getElementById('dashboard-section').classList.remove('hidden');
     document.getElementById('welcome-msg').textContent = `Welcome, ${currentUser.username}!`;
     
     const navLinks = document.getElementById('nav-links');
     navLinks.innerHTML = `
         <button class="text-btn" onclick="showProblemsListNav()">Problems</button>
+        <button class="text-btn" onclick="showProfileSection()">Profile</button>
         ${currentUser.is_admin ? '<button class="text-btn" onclick="scrollToAdminPanel()">Admin Panel</button>' : ''}
         <button class="text-btn" onclick="logout()">Logout</button>
     `;
@@ -40,15 +63,111 @@ function showDashboard() {
         document.getElementById('admin-badge').style.display = 'none';
         document.getElementById('admin-panel').style.display = 'none';
     }
+
+    // Show persistent floating AI FAB
+    const fab = document.getElementById('floating-ai-fab');
+    if (fab) fab.classList.remove('hidden');
     
     loadProblems();
 }
 
 function showProblemsListNav() {
+    showDashboardSection();
     hideSubmitPanel();
 }
 
+function showDashboardSection() {
+    document.getElementById('profile-section').classList.add('hidden');
+    document.getElementById('dashboard-section').classList.remove('hidden');
+}
+
+async function showProfileSection() {
+    hideSubmitPanel();
+    document.getElementById('dashboard-section').classList.add('hidden');
+    const profileSec = document.getElementById('profile-section');
+    profileSec.classList.remove('hidden');
+
+    if (currentUser.is_admin) {
+        const badge = document.getElementById('profile-admin-badge');
+        if (badge) badge.style.display = 'block';
+    }
+
+    document.getElementById('profile-username').textContent = currentUser.username;
+    document.getElementById('profile-email').textContent = currentUser.email;
+    
+    if (currentUser.created_at) {
+        const d = new Date(currentUser.created_at);
+        document.getElementById('profile-joined').textContent = `Member since ${d.toLocaleDateString()}`;
+    }
+
+    // Fetch Stats
+    try {
+        const statsRes = await fetch(`${API_URL}/users/profile`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (statsRes.ok) {
+            const stats = await statsRes.json();
+            document.getElementById('stat-solved').textContent = stats.solved_count;
+            document.getElementById('stat-attempted').textContent = stats.attempted_count;
+            document.getElementById('stat-total').textContent = stats.total_submissions;
+        }
+    } catch (e) {
+        console.error("Failed to load profile stats", e);
+    }
+
+    // Fetch AI Chat History
+    loadProfileChatHistory();
+}
+
+async function loadProfileChatHistory() {
+    const container = document.getElementById('profile-chat-history-container');
+    container.innerHTML = '<p style="color: var(--text-muted);">Loading chat history...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/ai/user/history`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!res.ok) throw new Error("Failed to load chat history");
+
+        const historyList = await res.json();
+        if (!historyList || historyList.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">No AI tutor chat history found yet. Submit code to start chatting with AI Tutor!</p>';
+            return;
+        }
+
+        let html = '';
+        historyList.forEach(item => {
+            const dateStr = item.last_updated ? new Date(item.last_updated).toLocaleString() : '';
+            const verdictBadgeClass = item.verdict === 'AC' ? 'ac-badge' : 'wa-badge';
+            html += `
+                <div class="history-card-item" onclick="openAITutorForSubmission(${item.submission_id})">
+                    <div>
+                        <div style="font-weight: 700; font-size: 0.95rem; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>💡 ${item.problem_title}</span>
+                            <span class="status-badge ${verdictBadgeClass}">${item.verdict}</span>
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
+                            ${item.message_count} message(s) • Last active: ${dateStr}
+                        </div>
+                    </div>
+                    <button class="secondary-btn" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">Review Chat →</button>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+
+    } catch (err) {
+        container.innerHTML = `<p style="color: var(--error); font-size: 0.9rem;">${err.message}</p>`;
+    }
+}
+
+async function openAITutorForSubmission(subId) {
+    currentSubmissionId = subId;
+    await openAITutorModal();
+}
+
 function scrollToAdminPanel() {
+    showDashboardSection();
     hideSubmitPanel();
     const panel = document.getElementById('admin-panel');
     if (panel) {
@@ -61,7 +180,13 @@ function logout() {
     currentUser = null;
     document.getElementById('auth-section').classList.remove('hidden');
     document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('profile-section').classList.add('hidden');
     document.getElementById('nav-links').innerHTML = '';
+
+    const fab = document.getElementById('floating-ai-fab');
+    if (fab) fab.classList.add('hidden');
+    const widget = document.getElementById('floating-ai-widget');
+    if (widget) widget.classList.add('hidden');
 }
 
 async function handleAuth(e) {
@@ -266,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function openSubmitPanel(id, title, desc) {
     selectedProblemId = id;
+    currentProblemTitle = title;
     currentSubmissionId = null;
     document.querySelector('.problems-list').classList.add('hidden');
     if (document.getElementById('admin-panel')) document.getElementById('admin-panel').classList.add('hidden');
@@ -273,8 +399,12 @@ function openSubmitPanel(id, title, desc) {
     const panel = document.getElementById('submit-panel');
     panel.classList.remove('hidden');
     document.getElementById('submit-prob-title').textContent = title;
-    document.getElementById('submit-prob-desc').innerHTML = desc.replace(/\n/g, '<br>');
+    document.getElementById('submit-prob-desc').innerHTML = renderMarkdown(desc);
     
+    // Update floating AI context badge
+    const badge = document.getElementById('floating-ai-context');
+    if (badge) badge.textContent = title;
+
     // Reset verdict & AI triggers
     document.getElementById('verdict-display').classList.add('hidden');
     document.getElementById('ai-tutor-btn').classList.add('hidden');
@@ -286,11 +416,16 @@ function openSubmitPanel(id, title, desc) {
 
 function hideSubmitPanel() {
     selectedProblemId = null;
+    currentProblemTitle = null;
     currentSubmissionId = null;
     document.getElementById('submit-panel').classList.add('hidden');
     document.querySelector('.problems-list').classList.remove('hidden');
     if (currentUser && currentUser.is_admin) document.getElementById('admin-panel').classList.remove('hidden');
     if (pollInterval) clearInterval(pollInterval);
+
+    // Reset floating AI context badge
+    const badge = document.getElementById('floating-ai-context');
+    if (badge) badge.textContent = "General AI";
 }
 
 async function handleSubmitCode(e) {
@@ -303,14 +438,13 @@ async function handleSubmitCode(e) {
     
     btn.disabled = true;
     vDisplay.classList.remove('hidden');
-    vStatus.textContent = "SUBMITTED...";
-    vStatus.className = 'verdict-running';
-    vTime.textContent = "";
-    
     document.getElementById('ai-tutor-btn').classList.add('hidden');
     document.getElementById('ai-complexity-btn').classList.add('hidden');
     document.getElementById('complexity-card-container').classList.add('hidden');
-
+    vStatus.textContent = "SUBMITTING...";
+    vStatus.className = "verdict-pending";
+    vTime.textContent = "";
+    
     try {
         const res = await fetch(`${API_URL}/submissions/`, {
             method: 'POST',
@@ -320,32 +454,37 @@ async function handleSubmitCode(e) {
             },
             body: JSON.stringify({
                 problem_id: selectedProblemId,
-                code: code,
-                language: "cpp"
+                language: "cpp",
+                code: code
             })
         });
         
         if (!res.ok) throw new Error("Submission failed");
-        const sub = await res.json();
-        currentSubmissionId = sub.id;
         
-        pollVerdict(sub.id);
+        const subData = await res.json();
+        currentSubmissionId = subData.id;
+        
+        pollVerdict(subData.id);
         
     } catch (err) {
-        vStatus.textContent = "ERROR: " + err.message;
-        vStatus.className = 'verdict-re';
+        vStatus.textContent = "ERROR";
+        vStatus.className = "verdict-re";
         btn.disabled = false;
     }
 }
 
 function pollVerdict(subId) {
+    const btn = document.getElementById('submit-btn');
     const vStatus = document.getElementById('verdict-status');
     const vTime = document.getElementById('verdict-time');
-    const btn = document.getElementById('submit-btn');
     
     pollInterval = setInterval(async () => {
         try {
-            const res = await fetch(`${API_URL}/submissions/${subId}`);
+            const res = await fetch(`${API_URL}/submissions/${subId}`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            
+            if (!res.ok) return;
             const data = await res.json();
             
             vStatus.textContent = data.verdict;
@@ -397,27 +536,27 @@ async function openAITutorModal() {
         
         const data = await res.json();
         
-        document.getElementById('tutor-wrong-text').textContent = data.what_went_wrong;
-        document.getElementById('hint-1-text').textContent = data.hint_1;
+        document.getElementById('tutor-wrong-text').innerHTML = renderMarkdown(data.what_went_wrong);
+        document.getElementById('hint-1-text').innerHTML = renderMarkdown(data.hint_1);
         
         // Setup progressive hints
         const h2Container = document.getElementById('hint-2-container');
         h2Container.className = 'hint-step locked';
         h2Container.innerHTML = `
             <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(2, ${JSON.stringify(data.hint_2).replace(/"/g, '&quot;')})">Unlock Hint 2</button>
-            <p id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+            <div id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></div>
         `;
         
         const h3Container = document.getElementById('hint-3-container');
         h3Container.className = 'hint-step locked';
         h3Container.innerHTML = `
             <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(3, ${JSON.stringify(data.strong_hint).replace(/"/g, '&quot;')})">Unlock Strong Hint</button>
-            <p id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+            <div id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></div>
         `;
         
-        document.getElementById('tutor-edge-case').textContent = data.edge_case || "Check N=1 or Maximum constraint boundaries.";
-        document.getElementById('tutor-where').textContent = data.where_to_look || "Main logic loop";
-        document.getElementById('tutor-concept').textContent = data.concept || "Algorithms & Data Structures";
+        document.getElementById('tutor-edge-case').innerHTML = renderMarkdown(data.edge_case || "Check N=1 or Maximum constraint boundaries.");
+        document.getElementById('tutor-where').innerHTML = renderMarkdown(data.where_to_look || "Main logic loop");
+        document.getElementById('tutor-concept').innerHTML = renderMarkdown(data.concept || "Algorithms & Data Structures");
         
         document.getElementById('tutor-loading').classList.add('hidden');
         document.getElementById('tutor-content').classList.remove('hidden');
@@ -435,14 +574,14 @@ function unlockHint(stepNum, text) {
         container.className = 'hint-step';
         container.innerHTML = `
             <strong style="color: #a5f3fc; font-size: 0.85rem;">Hint 2 (Logic Focus):</strong>
-            <p style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${text}</p>
+            <div style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${renderMarkdown(text)}</div>
         `;
     } else if (stepNum === 3) {
         const container = document.getElementById('hint-3-container');
         container.className = 'hint-step';
         container.innerHTML = `
             <strong style="color: #fef08a; font-size: 0.85rem;">Strong Hint:</strong>
-            <p style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${text}</p>
+            <div style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${renderMarkdown(text)}</div>
         `;
     }
 }
@@ -453,21 +592,22 @@ function closeAITutorModal() {
 
 async function loadTutorChatHistory() {
     if (!currentSubmissionId) return;
+    const msgContainer = document.getElementById('chat-messages');
+    msgContainer.innerHTML = '';
+
     try {
         const res = await fetch(`${API_URL}/ai/tutor/${currentSubmissionId}/history`, {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         if (res.ok) {
-            const history = await res.json();
-            const container = document.getElementById('chat-messages');
-            container.innerHTML = '';
-            history.forEach(msg => {
-                const b = document.createElement('div');
-                b.className = `chat-bubble ${msg.role}`;
-                b.textContent = msg.content;
-                container.appendChild(b);
+            const msgs = await res.json();
+            msgs.forEach(m => {
+                const bubble = document.createElement('div');
+                bubble.className = `chat-bubble ${m.role}`;
+                bubble.innerHTML = renderMarkdown(m.content);
+                msgContainer.appendChild(bubble);
             });
-            container.scrollTop = container.scrollHeight;
+            msgContainer.scrollTop = msgContainer.scrollHeight;
         }
     } catch (e) {}
 }
@@ -476,23 +616,23 @@ async function sendTutorChat() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if (!msg || !currentSubmissionId) return;
-    
-    input.value = '';
-    const container = document.getElementById('chat-messages');
+
+    const msgContainer = document.getElementById('chat-messages');
     
     // Append user bubble
-    const userB = document.createElement('div');
-    userB.className = 'chat-bubble user';
-    userB.textContent = msg;
-    container.appendChild(userB);
-    container.scrollTop = container.scrollHeight;
-    
-    // Append loading assistant bubble
-    const loadingB = document.createElement('div');
-    loadingB.className = 'chat-bubble assistant';
-    loadingB.textContent = 'Thinking...';
-    container.appendChild(loadingB);
-    container.scrollTop = container.scrollHeight;
+    const uBubble = document.createElement('div');
+    uBubble.className = 'chat-bubble user';
+    uBubble.textContent = msg;
+    msgContainer.appendChild(uBubble);
+    input.value = '';
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+
+    // Append loading bubble
+    const aBubble = document.createElement('div');
+    aBubble.className = 'chat-bubble assistant';
+    aBubble.textContent = "AI is thinking...";
+    msgContainer.appendChild(aBubble);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
 
     try {
         const res = await fetch(`${API_URL}/ai/tutor/${currentSubmissionId}/chat`, {
@@ -504,13 +644,83 @@ async function sendTutorChat() {
             body: JSON.stringify({ message: msg })
         });
         
-        if (!res.ok) throw new Error("Failed to send message");
+        if (!res.ok) throw new Error("Failed to get AI reply");
         const data = await res.json();
+        aBubble.innerHTML = renderMarkdown(data.reply);
+        msgContainer.scrollTop = msgContainer.scrollHeight;
         
-        loadingB.textContent = data.reply;
-        container.scrollTop = container.scrollHeight;
     } catch (err) {
-        loadingB.textContent = "Error: " + err.message;
+        aBubble.textContent = `Error: ${err.message}`;
+    }
+}
+
+// --- Feature: Persistent Floating AI Assistant Widget ---
+
+function toggleFloatingAIWidget() {
+    const widget = document.getElementById('floating-ai-widget');
+    if (widget) {
+        widget.classList.toggle('hidden');
+    }
+}
+
+function handleFloatingAIPress(e) {
+    if (e.key === 'Enter') {
+        sendFloatingAIMessage();
+    }
+}
+
+async function sendFloatingAIMessage() {
+    const input = document.getElementById('floating-ai-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const body = document.getElementById('floating-ai-body');
+
+    // Append User Message
+    const uMsg = document.createElement('div');
+    uMsg.className = 'floating-ai-msg user';
+    uMsg.textContent = message;
+    body.appendChild(uMsg);
+    input.value = '';
+    body.scrollTop = body.scrollHeight;
+
+    // Push to history
+    floatingAIChatHistory.push({ role: 'user', content: message });
+
+    // Append Loading Assistant Bubble
+    const aMsg = document.createElement('div');
+    aMsg.className = 'floating-ai-msg assistant';
+    aMsg.textContent = 'Thinking...';
+    body.appendChild(aMsg);
+    body.scrollTop = body.scrollHeight;
+
+    const editorEl = document.getElementById('code-editor');
+    const currentCode = editorEl ? editorEl.value : "";
+
+    try {
+        const res = await fetch(`${API_URL}/ai/general-chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({
+                message: message,
+                problem_id: selectedProblemId,
+                current_code: currentCode,
+                history: floatingAIChatHistory.slice(-6)
+            })
+        });
+
+        if (!res.ok) throw new Error("Failed to contact AI Assistant");
+        const data = await res.json();
+
+        aMsg.innerHTML = renderMarkdown(data.reply);
+        floatingAIChatHistory.push({ role: 'assistant', content: data.reply });
+        body.scrollTop = body.scrollHeight;
+
+    } catch (err) {
+        aMsg.textContent = `Error: ${err.message}`;
     }
 }
 
@@ -518,9 +728,9 @@ async function sendTutorChat() {
 
 async function fetchComplexityAnalysis() {
     if (!currentSubmissionId) return;
-    const container = document.getElementById('complexity-card-container');
-    container.classList.remove('hidden');
-    container.innerHTML = '<p style="color:var(--primary); text-align:center; padding: 1rem;">⚡ Analyzing code complexity with LangChain...</p>';
+    const cardContainer = document.getElementById('complexity-card-container');
+    cardContainer.classList.remove('hidden');
+    cardContainer.innerHTML = '<p style="color:var(--primary); font-size:0.9rem;">⚡ Analyzing Time & Space Complexity...</p>';
 
     try {
         const res = await fetch(`${API_URL}/ai/complexity/${currentSubmissionId}`, {
@@ -528,70 +738,67 @@ async function fetchComplexityAnalysis() {
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
         
-        if (!res.ok) throw new Error("Complexity analysis failed");
+        if (!res.ok) throw new Error("Failed to fetch complexity analysis");
         const data = await res.json();
-        
+
         let opsHtml = '';
         if (data.operations_breakdown && data.operations_breakdown.length > 0) {
             opsHtml = `
-                <table class="ops-table">
+                <table class="ops-table" style="width:100%; margin-top:0.8rem; font-size:0.85rem; border-collapse:collapse;">
                     <thead>
-                        <tr><th>Operation</th><th>Complexity</th><th>Ref</th></tr>
+                        <tr style="text-align:left; border-bottom:1px solid rgba(255,255,255,0.1);">
+                            <th style="padding:0.4rem;">Operation</th>
+                            <th style="padding:0.4rem;">Complexity</th>
+                            <th style="padding:0.4rem;">Line / Location</th>
+                        </tr>
                     </thead>
                     <tbody>
-                        ${data.operations_breakdown.map(o => `
-                            <tr>
-                                <td><code>${o.operation}</code></td>
-                                <td style="color:var(--accent); font-weight:600;">${o.complexity}</td>
-                                <td style="color:var(--text-muted);">${o.line_reference || '-'}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
             `;
+            data.operations_breakdown.forEach(op => {
+                opsHtml += `
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                        <td style="padding:0.4rem;"><code>${op.operation}</code></td>
+                        <td style="padding:0.4rem; color:#38bdf8;">${op.complexity}</td>
+                        <td style="padding:0.4rem; color:var(--text-muted);">${op.line_reference || '-'}</td>
+                    </tr>
+                `;
+            });
+            opsHtml += '</tbody></table>';
         }
 
         let optsHtml = '';
         if (data.optimizations && data.optimizations.length > 0) {
-            optsHtml = `
-                <div style="margin-top: 1rem;">
-                    <h5 style="color: #a5f3fc; font-size: 0.85rem; margin-bottom: 0.4rem;">💡 Optimization Suggestions</h5>
-                    <ul style="padding-left: 1.2rem; font-size: 0.85rem; color: var(--text-muted);">
-                        ${data.optimizations.map(opt => `<li style="margin-bottom: 0.3rem;">${opt}</li>`).join('')}
-                    </ul>
-                </div>
-            `;
+            optsHtml = '<ul style="margin-top:0.6rem; padding-left:1.2rem; font-size:0.88rem; color:#e2e8f0;">';
+            data.optimizations.forEach(opt => {
+                optsHtml += `<li style="margin-bottom:0.3rem;">${opt}</li>`;
+            });
+            optsHtml += '</ul>';
         }
 
-        container.innerHTML = `
+        cardContainer.innerHTML = `
             <div class="complexity-card">
-                <h4 style="font-size: 1.1rem; color: var(--accent); margin-bottom: 1rem;">⚡ Code Complexity Analysis</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+                    <span style="font-weight:700; font-size:1rem; color:#a5f3fc;">⚡ Complexity Breakdown</span>
+                    <span class="status-badge ac-badge">${data.performance}</span>
+                </div>
                 
-                <div class="complexity-grid">
-                    <div class="complexity-box">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">TIME COMPLEXITY</span>
-                        <div class="complexity-value">${data.time_complexity}</div>
-                    </div>
-                    <div class="complexity-box">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">SPACE COMPLEXITY</span>
-                        <div class="complexity-value" style="color: var(--primary);">${data.space_complexity}</div>
-                    </div>
+                <div class="complexity-badge-row">
+                    <span class="comp-badge">⏱️ Time: ${data.time_complexity}</span>
+                    <span class="comp-badge">💾 Space: ${data.space_complexity}</span>
+                </div>
+                
+                <div style="font-size:0.9rem; color:#cbd5e1; line-height:1.5; margin-top:0.8rem;">
+                    ${renderMarkdown(data.explanation)}
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.8rem;">
-                    <span style="font-size: 0.85rem;">Performance Rating:</span>
-                    <span class="tag" style="background:rgba(16,185,129,0.2); color:#34d399;">${data.performance}</span>
-                </div>
-
-                <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 0.8rem;">${data.explanation}</p>
-                
                 ${opsHtml}
-                ${optsHtml}
+                
+                ${optsHtml ? `<h5 style="color:#fef08a; margin-top:1rem; margin-bottom:0.3rem;">🚀 Key Optimizations</h5>${optsHtml}` : ''}
             </div>
         `;
 
     } catch (err) {
-        container.innerHTML = `<p style="color:var(--error); text-align:center;">${err.message}</p>`;
+        cardContainer.innerHTML = `<p style="color:var(--error); font-size:0.88rem;">${err.message}</p>`;
     }
 }
 
@@ -604,18 +811,18 @@ function toggleAIProblemModal() {
 
 async function runAIProblemGenerator() {
     const topic = document.getElementById('gen-topic').value.trim();
+    const difficulty = document.getElementById('gen-difficulty').value;
+    const tags = document.getElementById('gen-tags').value.trim();
+    const instructions = document.getElementById('gen-instructions').value.trim();
+
     if (!topic) {
-        alert("Please enter a problem topic/algorithm (e.g. Binary Search)");
+        alert("Please enter a Topic or Algorithm name (e.g. Binary Search).");
         return;
     }
-    
-    const difficulty = document.getElementById('gen-difficulty').value;
-    const tags = document.getElementById('gen-tags').value;
-    const instructions = document.getElementById('gen-instructions').value;
-    
+
     const reviewWorkspace = document.getElementById('gen-review-workspace');
     reviewWorkspace.classList.remove('hidden');
-    reviewWorkspace.innerHTML = '<p style="color:var(--purple); text-align:center; padding: 2rem;">🪄 Generating contest-grade problem & testcases with LangChain...</p>';
+    reviewWorkspace.innerHTML = '<p style="color:var(--primary); text-align:center; padding:2rem;">🪄 LangChain & Gemini are crafting your competitive programming problem and test cases...</p>';
 
     try {
         const res = await fetch(`${API_URL}/problems/generate-ai`, {
