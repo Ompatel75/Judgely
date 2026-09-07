@@ -1,4 +1,4 @@
-﻿* {
+* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -894,4 +894,86 @@ textarea {
     border: none;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     margin: 0.8rem 0;
+}
+
+
+/* --- EXPANDED FLOATING AI WIDGET & CODE INSPECTOR STYLES --- */
+.floating-ai-widget {
+    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), height 0.3s cubic-bezier(0.16, 1, 0.3, 1), max-height 0.3s cubic-bezier(0.16, 1, 0.3, 1), bottom 0.3s ease, right 0.3s ease;
+}
+
+.floating-ai-widget.expanded {
+    width: 820px !important;
+    max-width: 94vw !important;
+    height: 80vh !important;
+    max-height: 850px !important;
+    bottom: 1.5rem !important;
+    right: 1.5rem !important;
+    border-color: rgba(168, 85, 247, 0.6) !important;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 40px rgba(168, 85, 247, 0.25) !important;
+}
+
+.floating-ai-widget.expanded .floating-ai-body {
+    max-height: none !important;
+    flex: 1 !important;
+}
+
+/* Code Block Toolbar & Inspector Styles */
+.code-block-wrapper {
+    margin: 0.75rem 0;
+    border-radius: 10px;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    overflow: hidden;
+    background: #090d16;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.code-block-header {
+    background: rgba(30, 41, 59, 0.85);
+    padding: 0.4rem 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.75rem;
+}
+
+.code-block-lang {
+    color: #c084fc;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-size: 0.7rem;
+}
+
+.code-block-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 0.2rem 0.55rem;
+    cursor: pointer;
+    font-size: 0.72rem;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.code-block-btn:hover {
+    background: rgba(168, 85, 247, 0.25);
+    color: #ffffff;
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+@keyframes popIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }

@@ -1,4 +1,4 @@
-﻿import json
+import json
 import hashlib
 from typing import List, Optional
 from pydantic import BaseModel, Field

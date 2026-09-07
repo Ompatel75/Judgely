@@ -1,4 +1,4 @@
-﻿import tempfile
+import tempfile
 import os
 import subprocess
 from fastapi import APIRouter, Depends, HTTPException

@@ -1,4 +1,5 @@
-﻿import json
+from datetime import datetime
+import json
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -7,7 +8,7 @@ from typing import List, Any, Optional
 from app.api.dependencies import get_db, get_current_user
 from app.db.models import (
     Submission, User, Problem, TestCase, VerdictEnum,
-    AIComplexityAnalysis, AITutorConversation
+    AIComplexityAnalysis, AITutorConversation, AIGeneralChatLog
 )
 from app.schemas.ai import (
     AITutorHintResponse,
@@ -16,7 +17,8 @@ from app.schemas.ai import (
     AIChatResponse,
     AIChatMessage,
     AIChatSummaryItem,
-    GeneralAIChatRequest
+    GeneralAIChatRequest,
+    GeneralAIChatResponse
 )
 from app.services.ai import (
     generate_tutor_hint,
@@ -34,27 +36,26 @@ def get_user_ai_chat_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
-    # Query distinct submission conversations for the user
+    results = []
+
+    # 1. Socratic Tutor chats
     sub_ids = db.query(AITutorConversation.submission_id).filter(
         AITutorConversation.user_id == current_user.id
     ).group_by(AITutorConversation.submission_id).all()
 
-    results = []
     for (s_id,) in sub_ids:
         submission = db.query(Submission).filter(Submission.id == s_id).first()
         if not submission:
             continue
         problem = db.query(Problem).filter(Problem.id == submission.problem_id).first()
-        
-        msg_count = db.query(func.count(AITutorConversation.id)).filter(
-            AITutorConversation.submission_id == s_id
-        ).scalar() or 0
-
+        msg_count = db.query(AITutorConversation).filter(AITutorConversation.submission_id == s_id).count()
         last_msg = db.query(AITutorConversation).filter(
             AITutorConversation.submission_id == s_id
         ).order_by(AITutorConversation.created_at.desc()).first()
 
         results.append(AIChatSummaryItem(
+            chat_type="tutor",
+            session_id=None,
             submission_id=s_id,
             problem_id=submission.problem_id,
             problem_title=problem.title if problem else "Problem",
@@ -63,14 +64,48 @@ def get_user_ai_chat_history(
             last_updated=last_msg.created_at if last_msg else submission.created_at
         ))
 
+    # 2. General AI Assistant chats
+    gen_sessions = db.query(AIGeneralChatLog.session_id).filter(
+        AIGeneralChatLog.user_id == current_user.id
+    ).group_by(AIGeneralChatLog.session_id).all()
+
+    for (sess_id,) in gen_sessions:
+        first_user_msg = db.query(AIGeneralChatLog).filter(
+            AIGeneralChatLog.session_id == sess_id,
+            AIGeneralChatLog.role == "user"
+        ).order_by(AIGeneralChatLog.created_at.asc()).first()
+
+        title_text = "General AI Chat"
+        if first_user_msg and first_user_msg.content:
+            title_text = first_user_msg.content[:45] + ("..." if len(first_user_msg.content) > 45 else "")
+
+        msg_count = db.query(AIGeneralChatLog).filter(AIGeneralChatLog.session_id == sess_id).count()
+        last_msg = db.query(AIGeneralChatLog).filter(
+            AIGeneralChatLog.session_id == sess_id
+        ).order_by(AIGeneralChatLog.created_at.desc()).first()
+
+        results.append(AIChatSummaryItem(
+            chat_type="general",
+            session_id=sess_id,
+            submission_id=None,
+            problem_id=None,
+            problem_title=title_text,
+            verdict=None,
+            message_count=msg_count,
+            last_updated=last_msg.created_at if last_msg else datetime.now()
+        ))
+
+    results.sort(key=lambda x: x.last_updated, reverse=True)
     return results
 
-@router.post("/general-chat", response_model=AIChatResponse)
+@router.post("/general-chat", response_model=GeneralAIChatResponse)
 def persistent_general_ai_chat(
     chat_in: GeneralAIChatRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
+    session_id = chat_in.session_id or f"gen_{current_user.id}_{int(datetime.now().timestamp())}"
+    
     problem_title = None
     problem_desc = None
     if chat_in.problem_id:
@@ -87,7 +122,37 @@ def persistent_general_ai_chat(
         history=chat_in.history or []
     )
 
-    return AIChatResponse(reply=reply_text)
+    # Persist chat history into DB
+    db.add(AIGeneralChatLog(
+        user_id=current_user.id,
+        problem_id=chat_in.problem_id,
+        session_id=session_id,
+        role="user",
+        content=chat_in.message
+    ))
+    db.add(AIGeneralChatLog(
+        user_id=current_user.id,
+        problem_id=chat_in.problem_id,
+        session_id=session_id,
+        role="assistant",
+        content=reply_text
+    ))
+    db.commit()
+
+    return GeneralAIChatResponse(reply=reply_text, session_id=session_id)
+
+@router.get("/general-chat/{session_id}/history", response_model=List[AIChatMessage])
+def get_general_chat_history(
+    session_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    records = db.query(AIGeneralChatLog).filter(
+        AIGeneralChatLog.session_id == session_id,
+        AIGeneralChatLog.user_id == current_user.id
+    ).order_by(AIGeneralChatLog.created_at.asc()).all()
+
+    return [AIChatMessage(role=r.role, content=r.content, created_at=r.created_at) for r in records]
 
 @router.post("/tutor/{submission_id}", response_model=AITutorHintResponse)
 def get_ai_tutor_hint(
@@ -106,9 +171,25 @@ def get_ai_tutor_hint(
     if not problem:
         raise HTTPException(status_code=404, detail="Associated problem not found")
 
+    # If conversation history already exists, return existing hint summary without calling LLM!
+    existing_convo = db.query(AITutorConversation).filter(
+        AITutorConversation.submission_id == submission_id
+    ).order_by(AITutorConversation.created_at.asc()).all()
+
+    if existing_convo:
+        first_msg = existing_convo[0].content
+        parts = first_msg.split("\n\n**Hint 1:** ")
+        what_went_wrong = parts[0].replace("**Diagnosed Error:** ", "") if len(parts) > 0 else "Analysis completed."
+        hint_1 = parts[1] if len(parts) > 1 else "Check your code structure."
+        return AITutorHintResponse(
+            what_went_wrong=what_went_wrong,
+            hint_1=hint_1,
+            hint_2="Review your loop boundaries and constraints.",
+            hint_3="Verify your testcases against edge values."
+        )
+
     verdict_str = submission.verdict.name if submission.verdict else "UNKNOWN"
     
-    # Generate Socratic hint
     hint_response = generate_tutor_hint(
         problem_title=problem.title,
         problem_description=problem.description,
@@ -116,17 +197,14 @@ def get_ai_tutor_hint(
         verdict=verdict_str
     )
 
-    # Save initial system hint to conversation history if not already present
-    existing_convo = db.query(AITutorConversation).filter(AITutorConversation.submission_id == submission_id).first()
-    if not existing_convo:
-        initial_summary = f"**Diagnosed Error:** {hint_response.what_went_wrong}\n\n**Hint 1:** {hint_response.hint_1}"
-        db.add(AITutorConversation(
-            submission_id=submission_id,
-            user_id=current_user.id,
-            role="assistant",
-            content=initial_summary
-        ))
-        db.commit()
+    initial_summary = f"**Diagnosed Error:** {hint_response.what_went_wrong}\n\n**Hint 1:** {hint_response.hint_1}"
+    db.add(AITutorConversation(
+        submission_id=submission_id,
+        user_id=current_user.id,
+        role="assistant",
+        content=initial_summary
+    ))
+    db.commit()
 
     return hint_response
 
