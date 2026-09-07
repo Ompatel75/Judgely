@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -57,8 +57,8 @@
                 <p style="font-size: 0.95rem; margin-bottom: 1.5rem;">Sign in or create an account to begin solving.</p>
                 
                 <div class="tabs">
-                    <button class="tab-btn active" onclick="switchAuthTab('login')">Login</button>
-                    <button class="tab-btn" onclick="switchAuthTab('register')">Register</button>
+                    <button class="tab-btn active" onclick="switchAuthTab('login', this)">Login</button>
+                    <button class="tab-btn" onclick="switchAuthTab('register', this)">Register</button>
                 </div>
 
                 <form id="auth-form" onsubmit="handleAuth(event)">
@@ -373,7 +373,10 @@ int main() {
                 <span>🤖</span> Judgely AI Assistant
                 <span id="floating-ai-context" class="floating-ai-context-badge">General AI</span>
             </div>
-            <button class="text-btn" style="padding: 0.2rem 0.5rem;" onclick="toggleFloatingAIWidget()">✕</button>
+            <div style="display: flex; gap: 0.3rem;">
+                <button id="floating-ai-expand-btn" class="text-btn" style="padding: 0.2rem 0.5rem;" onclick="toggleFloatingAIMaximize()" title="Maximize / Restore Size">⛶</button>
+                <button class="text-btn" style="padding: 0.2rem 0.5rem;" onclick="toggleFloatingAIWidget()" title="Close">✕</button>
+            </div>
         </div>
         <div id="floating-ai-body" class="floating-ai-body">
             <div class="floating-ai-msg assistant">
@@ -387,5 +390,56 @@ int main() {
     </div>
 
     <script src="/static/script.js?v=12"></script>
+
+    <!-- AI Dedicated Code Viewer Popup Modal -->
+    <div id="ai-code-modal" class="modal-backdrop hidden" style="justify-content: center; align-items: center; z-index: 2500;">
+        <div class="modal-card" style="width: 920px; max-width: 95vw; height: 85vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(168, 85, 247, 0.3); overflow: hidden; animation: popIn 0.25s ease forwards;">
+            <div class="drawer-header" style="background: rgba(30, 41, 59, 0.95); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="font-size: 1.4rem;">💻</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.1rem; color: #f8fafc;">AI Code Inspector</h3>
+                        <span id="code-modal-lang-badge" class="badge badge-purple" style="font-size: 0.75rem; margin-top: 0.2rem;">C++</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="copyModalCode()" title="Copy Code to Clipboard">📋 Copy Code</button>
+                    <button class="btn btn-primary btn-sm" onclick="insertModalCodeToEditor()" title="Load code into problem editor">⚡ Load to Editor</button>
+                    <button class="text-btn" style="padding: 0.3rem 0.6rem; font-size: 1.2rem;" onclick="closeAICodeModal()" title="Close">✕</button>
+                </div>
+            </div>
+            <div style="flex: 1; padding: 1.25rem; overflow: auto; background: #090d16; font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;">
+                <pre style="margin: 0; white-space: pre-wrap; word-break: break-word;"><code id="ai-code-modal-content" style="color: #38bdf8; font-size: 0.95rem; line-height: 1.6;"></code></pre>
+            </div>
+            <div style="padding: 0.75rem 1.5rem; background: rgba(30, 41, 59, 0.7); border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-muted);">
+                <span>Tip: Click "Load to Editor" to paste this directly into your coding environment.</span>
+                <button class="btn btn-secondary btn-sm" onclick="closeAICodeModal()">Close Inspector</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Dedicated Past Chat Review Modal -->
+    <div id="review-chat-modal" class="modal-backdrop hidden" style="justify-content: center; align-items: center; z-index: 2400;">
+        <div class="modal-card" style="width: 820px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.85); overflow: hidden; animation: popIn 0.25s ease forwards;">
+            <div class="drawer-header" style="background: rgba(30, 41, 59, 0.95); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span style="font-size: 1.4rem;">💬</span>
+                    <div>
+                        <h3 id="review-chat-title" style="margin: 0; font-size: 1.1rem; color: #f8fafc;">Past Chat Session</h3>
+                        <span id="review-chat-subtitle" style="font-size: 0.75rem; color: var(--text-muted);">Saved conversation history</span>
+                    </div>
+                </div>
+                <button class="text-btn" style="padding: 0.3rem 0.6rem; font-size: 1.2rem;" onclick="closeReviewChatModal()" title="Close">✕</button>
+            </div>
+            <div id="review-chat-body" class="floating-ai-body" style="flex: 1; padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.85rem;">
+                <p style="color: var(--text-muted);">Loading conversation...</p>
+            </div>
+            <div style="padding: 0.75rem 1.5rem; background: rgba(30, 41, 59, 0.6); border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: flex-end;">
+                <button class="btn btn-secondary btn-sm" onclick="closeReviewChatModal()">Close Review</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

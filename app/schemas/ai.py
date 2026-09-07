@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
 from app.services.ai import (
@@ -17,20 +17,6 @@ class UserProfileStats(BaseModel):
     solved_count: int
     attempted_count: int
     total_submissions: int
-
-class AIChatSummaryItem(BaseModel):
-    submission_id: int
-    problem_id: int
-    problem_title: str
-    verdict: str
-    message_count: int
-    last_updated: datetime
-
-class GeneralAIChatRequest(BaseModel):
-    message: str
-    problem_id: Optional[int] = None
-    current_code: Optional[str] = None
-    history: Optional[List[dict]] = []
 
 class AIChatMessage(BaseModel):
     role: str
@@ -66,3 +52,25 @@ class TestValidationResponse(BaseModel):
     matched: int
     mismatched: int
     results: List[TestValidationResultItem]
+
+
+class AIChatSummaryItem(BaseModel):
+    chat_type: str # "tutor" or "general"
+    session_id: Optional[str] = None
+    submission_id: Optional[int] = None
+    problem_id: Optional[int] = None
+    problem_title: str
+    verdict: Optional[str] = None
+    message_count: int
+    last_updated: datetime
+
+class GeneralAIChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    problem_id: Optional[int] = None
+    current_code: Optional[str] = None
+    history: Optional[List[dict]] = []
+
+class GeneralAIChatResponse(BaseModel):
+    reply: str
+    session_id: str

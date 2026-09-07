@@ -32,16 +32,31 @@ function renderMarkdown(text) {
 
 // --- UI Navigation & Auth ---
 
-function switchAuthTab(mode) {
+function switchAuthTab(mode, btnEl) {
     authMode = mode;
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    if (event && event.target) event.target.classList.add('active');
+    if (btnEl) {
+        btnEl.classList.add('active');
+    } else if (typeof event !== 'undefined' && event && event.target) {
+        event.target.classList.add('active');
+    }
     
-    document.getElementById('register-fields').style.display = mode === 'register' ? 'block' : 'none';
-    document.getElementById('auth-submit-btn').textContent = mode === 'register' ? 'Register' : 'Login';
-    document.getElementById('auth-error').textContent = '';
+    const regFields = document.getElementById('register-fields');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const emailInp = document.getElementById('auth-email');
+    
+    if (mode === 'register') {
+        if (regFields) regFields.style.display = 'block';
+        if (submitBtn) submitBtn.textContent = 'Register';
+        if (emailInp) emailInp.setAttribute('required', 'required');
+    } else {
+        if (regFields) regFields.style.display = 'none';
+        if (submitBtn) submitBtn.textContent = 'Login';
+        if (emailInp) emailInp.removeAttribute('required');
+    }
+    const errEl = document.getElementById('auth-error');
+    if (errEl) errEl.textContent = '';
 }
-
 function showDashboard() {
     document.getElementById('auth-section').classList.add('hidden');
     document.getElementById('profile-section').classList.add('hidden');
@@ -131,36 +146,45 @@ async function loadProfileChatHistory() {
 
         const historyList = await res.json();
         if (!historyList || historyList.length === 0) {
-            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">No AI tutor chat history found yet. Submit code to start chatting with AI Tutor!</p>';
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">No AI chat history found yet. Start chatting with AI Assistant or AI Tutor!</p>';
             return;
         }
 
         let html = '';
         historyList.forEach(item => {
             const dateStr = item.last_updated ? new Date(item.last_updated).toLocaleString() : '';
-            const verdictBadgeClass = item.verdict === 'AC' ? 'ac-badge' : 'wa-badge';
+            const isTutor = item.chat_type === 'tutor';
+            const badgeText = isTutor ? '🎓 Socratic Tutor' : '🤖 General AI Assistant';
+            const badgeClass = isTutor ? 'badge-purple' : 'badge-blue';
+            const subTitle = isTutor 
+                ? `${item.problem_title} (${item.verdict || 'SUBMISSION'})` 
+                : `${item.problem_title}`;
+            
+            const targetId = isTutor ? item.submission_id : item.session_id;
+
             html += `
-                <div class="history-card-item" onclick="openAITutorForSubmission(${item.submission_id})">
-                    <div>
-                        <div style="font-weight: 700; font-size: 0.95rem; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
-                            <span>💡 ${item.problem_title}</span>
-                            <span class="status-badge ${verdictBadgeClass}">${item.verdict}</span>
+                <div class="history-card-item" style="cursor: pointer; transition: transform 0.15s ease;" onclick="openReviewChatModal('${item.chat_type}', '${targetId}', '${item.problem_title.replace(/'/g, "\'")}')">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="badge ${badgeClass}" style="font-size: 0.7rem;">${badgeText}</span>
+                                <strong style="font-size: 0.95rem; color: #f8fafc;">${subTitle}</strong>
+                            </div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0.3rem 0 0 0;">
+                                💬 ${item.message_count} messages recorded &bull; ${dateStr}
+                            </p>
                         </div>
-                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
-                            ${item.message_count} message(s) • Last active: ${dateStr}
-                        </div>
+                        <button class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 0.2rem 0.6rem;">Review Chat 👁️</button>
                     </div>
-                    <button class="secondary-btn" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">Review Chat →</button>
                 </div>
             `;
         });
-        container.innerHTML = html;
 
+        container.innerHTML = html;
     } catch (err) {
-        container.innerHTML = `<p style="color: var(--error); font-size: 0.9rem;">${err.message}</p>`;
+        container.innerHTML = `<p style="color: var(--accent-red);">Error loading chat history: ${err.message}</p>`;
     }
 }
-
 async function openAITutorForSubmission(subId) {
     currentSubmissionId = subId;
     await openAITutorModal();
@@ -708,6 +732,7 @@ async function sendFloatingAIMessage() {
                 message: message,
                 problem_id: selectedProblemId,
                 current_code: currentCode,
+                session_id: currentGeneralSessionId,
                 history: floatingAIChatHistory.slice(-6)
             })
         });
@@ -715,6 +740,7 @@ async function sendFloatingAIMessage() {
         if (!res.ok) throw new Error("Failed to contact AI Assistant");
         const data = await res.json();
 
+        if (data.session_id) currentGeneralSessionId = data.session_id;
         aMsg.innerHTML = renderMarkdown(data.reply);
         floatingAIChatHistory.push({ role: 'assistant', content: data.reply });
         body.scrollTop = body.scrollHeight;
@@ -1006,4 +1032,124 @@ async function saveGeneratedProblemToDB() {
     } catch (err) {
         alert("Error saving problem: " + err.message);
     }
+}
+
+
+// --- AI Widget Expand & Code Inspector Popup Functions ---
+function toggleFloatingAIMaximize() {
+    const widget = document.getElementById('floating-ai-widget');
+    const btn = document.getElementById('floating-ai-expand-btn');
+    if (widget) {
+        widget.classList.toggle('expanded');
+        if (widget.classList.contains('expanded')) {
+            if (btn) {
+                btn.innerHTML = '🗗';
+                btn.title = "Restore Normal Size";
+            }
+        } else {
+            if (btn) {
+                btn.innerHTML = '⛶';
+                btn.title = "Maximize / Expand Widget";
+            }
+        }
+    }
+}
+
+let currentModalCodeContent = "";
+
+function openAICodeModal(codeText, lang = "c++") {
+    currentModalCodeContent = codeText;
+    const modal = document.getElementById('ai-code-modal');
+    const codeEl = document.getElementById('ai-code-modal-content');
+    const langBadge = document.getElementById('code-modal-lang-badge');
+    if (codeEl) codeEl.textContent = codeText;
+    if (langBadge) langBadge.textContent = lang.toUpperCase();
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeAICodeModal() {
+    const modal = document.getElementById('ai-code-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function copyModalCode() {
+    if (currentModalCodeContent) {
+        navigator.clipboard.writeText(currentModalCodeContent).then(() => {
+            alert("Code copied to clipboard!");
+        }).catch(err => {
+            console.error("Failed to copy:", err);
+        });
+    }
+}
+
+function insertModalCodeToEditor() {
+    const editor = document.getElementById('code-editor');
+    if (editor && currentModalCodeContent) {
+        editor.value = currentModalCodeContent;
+        closeAICodeModal();
+        alert("Code loaded into your problem editor!");
+    } else {
+        alert("Code copied! Please open a problem tab to paste into the editor.");
+    }
+}
+
+function copyCodeSnippet(btn, encodedCode) {
+    const code = decodeURIComponent(encodedCode);
+    navigator.clipboard.writeText(code).then(() => {
+        const origText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        setTimeout(() => { btn.innerHTML = origText; }, 2000);
+    }).catch(err => {
+        console.error("Failed to copy snippet:", err);
+    });
+}
+
+
+// --- General AI Session Tracking & Review Modal JS ---
+let currentGeneralSessionId = null;
+
+function openReviewChatModal(chatType, targetId, titleText) {
+    const modal = document.getElementById('review-chat-modal');
+    const titleEl = document.getElementById('review-chat-title');
+    const subtitleEl = document.getElementById('review-chat-subtitle');
+    const body = document.getElementById('review-chat-body');
+
+    if (titleEl) titleEl.textContent = titleText || "Past Chat Review";
+    if (subtitleEl) subtitleEl.textContent = chatType === 'tutor' ? "Saved Socratic Tutor Session" : "Saved General AI Session";
+    if (body) body.innerHTML = '<p style="color: var(--text-muted);">Loading conversation transcript...</p>';
+    if (modal) modal.classList.remove('hidden');
+
+    const endpoint = chatType === 'tutor' 
+        ? `${API_URL}/ai/tutor/${targetId}/history` 
+        : `${API_URL}/ai/general-chat/${targetId}/history`;
+
+    fetch(endpoint, {
+        headers: { 'Authorization': `Bearer ${currentToken}` }
+    })
+    .then(res => {
+        if (!res.ok) throw new Error("Could not retrieve past chat history");
+        return res.json();
+    })
+    .then(messages => {
+        if (!messages || messages.length === 0) {
+            body.innerHTML = '<p style="color: var(--text-muted);">No messages saved for this chat session.</p>';
+            return;
+        }
+        body.innerHTML = '';
+        messages.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `floating-ai-msg ${msg.role}`;
+            div.innerHTML = renderMarkdown(msg.content);
+            body.appendChild(div);
+        });
+        body.scrollTop = body.scrollHeight;
+    })
+    .catch(err => {
+        body.innerHTML = `<p style="color: var(--accent-red);">Error: ${err.message}</p>`;
+    });
+}
+
+function closeReviewChatModal() {
+    const modal = document.getElementById('review-chat-modal');
+    if (modal) modal.classList.add('hidden');
 }

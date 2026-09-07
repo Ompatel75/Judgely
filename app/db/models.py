@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, Boolean, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, Boolean, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -83,6 +83,16 @@ class AITutorConversation(Base):
     id = Column(Integer, primary_key=True, index=True)
     submission_id = Column(Integer, ForeignKey("submissions.id"), index=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String(20), nullable=False) # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AIGeneralChatLog(Base):
+    __tablename__ = "ai_general_chat_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=True)
+    session_id = Column(String(64), index=True, nullable=False)
     role = Column(String(20), nullable=False) # "user" or "assistant"
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
