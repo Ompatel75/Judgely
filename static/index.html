@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Judgely AI — Competitive Programming Platform</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=10">
+    <link rel="stylesheet" href="/static/style.css?v=12">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div id="bg-blob1" class="blob"></div>
@@ -172,6 +173,48 @@ int main() {
                 </div>
             </div>
         </section>
+
+        <!-- User Profile Section -->
+        <section id="profile-section" class="glass-card hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <button class="text-btn" onclick="showDashboardSection()">← Back to Dashboard</button>
+                <div class="admin-badge" id="profile-admin-badge" style="display: none;">ADMINISTRATOR</div>
+            </div>
+
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">👤</div>
+                    <div>
+                        <h2 id="profile-username" style="margin: 0; font-size: 1.8rem;">Username</h2>
+                        <p id="profile-email" style="margin: 0.2rem 0; color: var(--text-muted); font-size: 0.95rem;">email@example.com</p>
+                        <span id="profile-joined" style="font-size: 0.8rem; color: #a855f7;">Member since...</span>
+                    </div>
+                </div>
+
+                <div class="profile-stats-grid">
+                    <div class="profile-stat-card">
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">Problems Solved</div>
+                        <div id="stat-solved" class="profile-stat-num profile-stat-solved">0</div>
+                    </div>
+                    <div class="profile-stat-card">
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">Problems Attempted</div>
+                        <div id="stat-attempted" class="profile-stat-num profile-stat-attempted">0</div>
+                    </div>
+                    <div class="profile-stat-card">
+                        <div style="font-size: 0.85rem; color: var(--text-muted);">Total Submissions</div>
+                        <div id="stat-total" class="profile-stat-num profile-stat-total">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3 style="margin-bottom: 1rem; font-size: 1.2rem; color: #a5f3fc;">💬 My AI Tutor Chat History</h3>
+                <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.2rem;">Review your past AI debugging sessions and hints at any time.</p>
+                <div id="profile-chat-history-container">
+                    <p style="color: var(--text-muted);">Loading chat history...</p>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- AI Tutor Modal Drawer -->
@@ -196,7 +239,7 @@ int main() {
                 <div id="tutor-content" class="hidden">
                     <div class="tutor-section">
                         <h4>🔍 What Went Wrong?</h4>
-                        <p id="tutor-wrong-text" style="color: #cbd5e1; font-size: 0.95rem; margin: 0;"></p>
+                        <div id="tutor-wrong-text" style="color: #cbd5e1; font-size: 0.95rem; margin: 0;"></div>
                     </div>
 
                     <div class="tutor-section">
@@ -204,32 +247,32 @@ int main() {
                         <div class="hint-accordion">
                             <div class="hint-step">
                                 <strong style="color: #a5f3fc; font-size: 0.85rem;">Hint 1 (General Direction):</strong>
-                                <p id="hint-1-text" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                                <div id="hint-1-text" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></div>
                             </div>
                             <div id="hint-2-container" class="hint-step locked">
                                 <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(2)">Unlock Hint 2</button>
-                                <p id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                                <div id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></div>
                             </div>
                             <div id="hint-3-container" class="hint-step locked">
                                 <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(3)">Unlock Strong Hint</button>
-                                <p id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                                <div id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></div>
                             </div>
                         </div>
                     </div>
 
                     <div class="tutor-section">
                         <h4>🧪 Edge Case to Consider</h4>
-                        <p id="tutor-edge-case" style="font-size: 0.9rem; color: #fef08a; margin: 0;"></p>
+                        <div id="tutor-edge-case" style="font-size: 0.9rem; color: #fef08a; margin: 0;"></div>
                     </div>
 
                     <div class="row" style="margin-bottom: 1rem;">
                         <div class="tutor-section" style="flex: 1; margin: 0;">
                             <h4>📍 Where to Look</h4>
-                            <p id="tutor-where" style="font-size: 0.85rem; margin: 0;"></p>
+                            <div id="tutor-where" style="font-size: 0.85rem; margin: 0;"></div>
                         </div>
                         <div class="tutor-section" style="flex: 1; margin: 0;">
                             <h4>🧠 Core Concept</h4>
-                            <p id="tutor-concept" style="font-size: 0.85rem; margin: 0;"></p>
+                            <div id="tutor-concept" style="font-size: 0.85rem; margin: 0;"></div>
                         </div>
                     </div>
 
@@ -319,6 +362,30 @@ int main() {
         </div>
     </div>
 
-    <script src="/static/script.js?v=10"></script>
+    <!-- Persistent Floating AI Assistant Button & Widget -->
+    <button id="floating-ai-fab" class="floating-ai-fab hidden" title="Ask Judgely AI Assistant" onclick="toggleFloatingAIWidget()">
+        💬
+    </button>
+
+    <div id="floating-ai-widget" class="floating-ai-widget hidden">
+        <div class="floating-ai-header">
+            <div class="floating-ai-title">
+                <span>🤖</span> Judgely AI Assistant
+                <span id="floating-ai-context" class="floating-ai-context-badge">General AI</span>
+            </div>
+            <button class="text-btn" style="padding: 0.2rem 0.5rem;" onclick="toggleFloatingAIWidget()">✕</button>
+        </div>
+        <div id="floating-ai-body" class="floating-ai-body">
+            <div class="floating-ai-msg assistant">
+                Hi! I'm your Judgely AI Assistant. Ask me anything about C++ syntax, algorithms, or your current problem!
+            </div>
+        </div>
+        <div class="floating-ai-footer">
+            <input type="text" id="floating-ai-input" placeholder="Type your question..." onkeypress="handleFloatingAIPress(event)">
+            <button class="primary-btn ai-btn" style="width: auto; padding: 0 1rem; font-size: 0.85rem;" onclick="sendFloatingAIMessage()">Send</button>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=12"></script>
 </body>
 </html>

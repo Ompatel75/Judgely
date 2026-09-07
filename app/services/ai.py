@@ -4,8 +4,6 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from app.core.config import settings
 
-# Define Pydantic Schemas for LangChain Structured Outputs
-
 class AITutorHintResponse(BaseModel):
     what_went_wrong: str = Field(description="Short, clear explanation of what likely went wrong in simple terms.")
     hint_1: str = Field(description="Light hint pointing to the general logic or setup.")
@@ -44,7 +42,6 @@ class AIGeneratedProblemSchema(BaseModel):
     test_cases: List[AITestCaseItem] = Field(description="List of sample and hidden testcases.")
 
 def get_llm():
-    """Helper to initialize ChatGoogleGenerativeAI or return None if key not configured."""
     if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY.startswith("your_"):
         return None
     try:
@@ -58,6 +55,19 @@ def get_llm():
     except Exception as e:
         print(f"Error initializing LangChain Google GenAI: {e}")
         return None
+
+def extract_response_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+        return "\n".join(parts)
+    return str(content)
 
 def compute_code_hash(code: str) -> str:
     return hashlib.sha256(code.strip().encode("utf-8")).hexdigest()
@@ -90,11 +100,10 @@ Your goal is to guide the student to discover their bug without writing the comp
 
 RULES:
 1. Do NOT rewrite the complete corrected C++ code.
-2. Explain the mistake simply.
+2. Explain the mistake simply and directly in plain, friendly language.
 3. Provide progressive hints (Hint 1 = broad direction, Hint 2 = logic focus, Strong Hint = targeted clue).
 4. Highlight possible integer overflows, off-by-one errors, or wrong constraints.
 5. Identify specific edge cases.
-6. Provide line/function references where applicable.
 """),
         ("user", """
 PROBLEM TITLE: {title}
@@ -148,18 +157,20 @@ def generate_tutor_chat_reply(
     if not llm:
         return "AI service is currently unavailable. Please configure GEMINI_API_KEY."
 
-    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
     messages = [
-        SystemMessage(content=f"""You are a helpful Socratic C++ competitive programming tutor.
-The user is working on the problem: '{problem_title}'.
-Verdict: {verdict}.
+        SystemMessage(content=f"""You are a friendly, expert C++ competitive programming tutor.
+The user is working on: '{problem_title}'. Verdict: {verdict}.
 User Code:
 ```cpp
 {user_code}
 ```
-Answer the user's follow-up questions constructively. Ask guiding questions, point out edge cases, or explain programming concepts. Do NOT dump a full working code replacement unless explicitly asked.""")
+
+GUIDELINES:
+1. Be concise, clear, and direct. Avoid overwhelming textbook dumps.
+2. Give actionable hints or brief explanations.
+3. Keep code snippets short and focused.""")
     ]
 
     for turn in chat_history:
@@ -172,9 +183,57 @@ Answer the user's follow-up questions constructively. Ask guiding questions, poi
 
     try:
         response = llm.invoke(messages)
-        return response.content
+        return extract_response_text(response.content)
     except Exception as e:
         return f"Sorry, I couldn't process your question right now: {str(e)}"
+
+# Feature: Persistent General & Problem-Context AI Assistant
+def generate_general_chat_reply(
+    message: str,
+    problem_title: Optional[str] = None,
+    problem_description: Optional[str] = None,
+    current_code: Optional[str] = None,
+    history: Optional[List[dict]] = None
+) -> str:
+    llm = get_llm()
+    if not llm:
+        return "AI Assistant is running in fallback mode. Please configure GEMINI_API_KEY in .env."
+
+    from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+
+    sys_text = """You are Judgely AI, a friendly, expert C++ competitive programming mentor.
+
+CRITICAL COMMUNICATION RULES:
+1. Speak in clean, natural, human-friendly language.
+2. Be CONCISE and to the point. Do NOT output giant textbook tutorials or long repetitive essays unless explicitly asked for a full tutorial.
+3. Format your answers clearly with short paragraphs, simple bullet points, and concise code snippets.
+4. Answer the user's exact question directly."""
+
+    if problem_title:
+        sys_text += f"\n\nCurrent Problem Context: '{problem_title}'"
+        if problem_description:
+            sys_text += f"\nDescription Summary: {problem_description[:500]}..."
+    if current_code and current_code.strip():
+        sys_text += f"\nCurrent User Code:\n```cpp\n{current_code}\n```"
+
+    messages = [SystemMessage(content=sys_text)]
+
+    if history:
+        for turn in history:
+            role = turn.get("role")
+            content = turn.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+
+    messages.append(HumanMessage(content=message))
+
+    try:
+        response = llm.invoke(messages)
+        return extract_response_text(response.content)
+    except Exception as e:
+        return f"Error connecting to AI assistant: {str(e)}"
 
 # Feature 2: Time & Space Complexity Analyzer
 def analyze_complexity(user_code: str, problem_description: str) -> AIComplexityResponse:
@@ -242,7 +301,6 @@ def generate_problem_with_ai(
 ) -> AIGeneratedProblemSchema:
     llm = get_llm()
     if not llm:
-        # Fallback dummy problem for admin testing if API key is not configured yet
         return AIGeneratedProblemSchema(
             title=f"Sample AI Problem: {topic.title()}",
             description=f"## {topic.title()} Challenge\n\nGiven an array of integers, solve this {difficulty} problem using **{topic}**.\n\n### Task\nFind the required target value.\n\n### Input Format\nFirst line contains integer N.\nSecond line contains N space-separated integers.\n\n### Output Format\nPrint a single integer result.\n\n### Constraints\n1 <= N <= 10^5",

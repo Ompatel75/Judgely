@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel
+﻿from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
 from app.services.ai import (
@@ -7,6 +7,30 @@ from app.services.ai import (
     AIGeneratedProblemSchema,
     OperationBreakdownItem
 )
+
+class UserProfileStats(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+    is_admin: bool
+    created_at: datetime
+    solved_count: int
+    attempted_count: int
+    total_submissions: int
+
+class AIChatSummaryItem(BaseModel):
+    submission_id: int
+    problem_id: int
+    problem_title: str
+    verdict: str
+    message_count: int
+    last_updated: datetime
+
+class GeneralAIChatRequest(BaseModel):
+    message: str
+    problem_id: Optional[int] = None
+    current_code: Optional[str] = None
+    history: Optional[List[dict]] = []
 
 class AIChatMessage(BaseModel):
     role: str

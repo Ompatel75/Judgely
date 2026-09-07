@@ -623,3 +623,275 @@ textarea {
     color: #f87171;
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
+
+/* Floating AI Assistant FAB & Widget */
+.floating-ai-fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 990;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7 0%, #06b6d4 100%);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(168, 85, 247, 0.4);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+
+.floating-ai-fab:hover {
+    transform: scale(1.1) rotate(5deg);
+    box-shadow: 0 12px 40px rgba(168, 85, 247, 0.6);
+}
+
+.floating-ai-widget {
+    position: fixed;
+    bottom: 5.5rem;
+    right: 2rem;
+    z-index: 1000;
+    width: 380px;
+    max-height: 540px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.floating-ai-widget.hidden {
+    display: none !important;
+}
+
+.floating-ai-header {
+    background: rgba(30, 41, 59, 0.8);
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.floating-ai-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #e2e8f0;
+}
+
+.floating-ai-context-badge {
+    background: rgba(6, 182, 212, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(6, 182, 212, 0.4);
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.floating-ai-body {
+    padding: 1rem;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 260px;
+    max-height: 360px;
+}
+
+.floating-ai-msg {
+    max-width: 85%;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.floating-ai-msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    border-bottom-right-radius: 2px;
+}
+
+.floating-ai-msg.assistant {
+    align-self: flex-start;
+    background: rgba(30, 41, 59, 0.9);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom-left-radius: 2px;
+}
+
+.floating-ai-footer {
+    padding: 0.75rem 1rem;
+    background: rgba(30, 41, 59, 0.6);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    gap: 0.5rem;
+}
+
+.floating-ai-footer input {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    color: #f8fafc;
+    font-size: 0.85rem;
+}
+
+.floating-ai-footer input:focus {
+    outline: none;
+    border-color: #a855f7;
+}
+
+/* User Profile Section */
+.profile-card {
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.profile-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: #fff;
+    box-shadow: 0 8px 24px rgba(168, 85, 247, 0.3);
+}
+
+.profile-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.profile-stat-card {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-align: center;
+}
+
+.profile-stat-num {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-top: 0.25rem;
+}
+
+.profile-stat-solved { color: #34d399; }
+.profile-stat-attempted { color: #fbbf24; }
+.profile-stat-total { color: #38bdf8; }
+
+.history-card-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.history-card-item:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(168, 85, 247, 0.4);
+}
+
+/* Markdown formatting in AI responses & chat bubbles */
+.floating-ai-msg p, .chat-bubble p {
+    margin-top: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.floating-ai-msg p:last-child, .chat-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.floating-ai-msg h1, .floating-ai-msg h2, .floating-ai-msg h3, .floating-ai-msg h4,
+.chat-bubble h1, .chat-bubble h2, .chat-bubble h3, .chat-bubble h4 {
+    color: #a5f3fc;
+    margin-top: 0.8rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.floating-ai-msg ul, .floating-ai-msg ol,
+.chat-bubble ul, .chat-bubble ol {
+    margin-top: 0.3rem;
+    margin-bottom: 0.5rem;
+    padding-left: 1.2rem;
+}
+
+.floating-ai-msg li, .chat-bubble li {
+    margin-bottom: 0.25rem;
+}
+
+.floating-ai-msg code, .chat-bubble code {
+    background: rgba(0, 0, 0, 0.4);
+    color: #38bdf8;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.82rem;
+}
+
+.floating-ai-msg pre, .chat-bubble pre {
+    background: #090d16 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.75rem;
+    overflow-x: auto;
+    margin: 0.6rem 0;
+}
+
+.floating-ai-msg pre code, .chat-bubble pre code {
+    background: transparent;
+    padding: 0;
+    color: #e2e8f0;
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+
+.floating-ai-msg hr, .chat-bubble hr {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 0.8rem 0;
+}
