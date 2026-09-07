@@ -1,49 +1,59 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Judgely</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=6">
+    <title>Judgely AI — Competitive Programming Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=10">
 </head>
 <body>
     <div id="bg-blob1" class="blob"></div>
     <div id="bg-blob2" class="blob"></div>
 
+    <!-- Navigation -->
     <nav class="glass-nav">
-        <div class="logo">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <div class="logo" onclick="location.reload()">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#logo-grad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <defs>
-                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stop-color="#06b6d4" />
-                        <stop offset="100%" stop-color="#10b981" />
+                        <stop offset="100%" stop-color="#a855f7" />
                     </linearGradient>
                 </defs>
                 <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
             </svg>
-            Judgely<span style="color: var(--primary);">.</span>
+            Judgely<span style="color: var(--primary);">.AI</span>
         </div>
         <div class="nav-links" id="nav-links">
-            <!-- Will be populated by JS -->
+            <!-- Populated via JS -->
         </div>
     </nav>
 
     <main class="container">
-        <!-- Auth Section / Landing Page -->
-        <section id="auth-section" class="active-section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; min-height: 70vh;">
-            <div class="hero-text" style="padding-right: 2rem;">
-                <h1 style="font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 1.5rem; background: linear-gradient(135deg, #fff 0%, #a5f3fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Master Algorithms with Judgely.</h1>
-                <p style="font-size: 1.15rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 2rem;">A beautifully designed, blazingly fast online judge platform. Start solving problems and run code in real-time.</p>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <span class="admin-badge" style="background: rgba(6, 182, 212, 0.1); color: #a5f3fc; border: 1px solid rgba(6, 182, 212, 0.2);">C++ GCC 11 Supported</span>
-                    <span class="admin-badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16,185,129,0.2);">Sub-millisecond Judging</span>
+        <!-- Auth Section / Hero Page -->
+        <section id="auth-section" class="active-section" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 3.5rem; align-items: center; min-height: 75vh;">
+            <div class="hero-text">
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(168, 85, 247, 0.1); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3); padding: 0.4rem 1rem; border-radius: 99px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1.5rem;">
+                    ✨ Powered by LangChain & Gemini AI
+                </div>
+                <h1 style="font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 1.2rem; background: linear-gradient(135deg, #fff 0%, #a5f3fc 50%, #e9d5ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    Code. Compete. Learn with AI.
+                </h1>
+                <p style="font-size: 1.15rem; color: var(--text-muted); line-height: 1.7; margin-bottom: 2rem;">
+                    An intelligent competitive programming platform that helps you understand code bugs, optimize time complexity, and master algorithms with a Socratic AI tutor.
+                </p>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <span class="admin-badge" style="background: rgba(6, 182, 212, 0.1); color: #a5f3fc; border: 1px solid rgba(6, 182, 212, 0.3);">💡 Socratic AI Debugger</span>
+                    <span class="admin-badge" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">⚡ Big-O Complexity Analyzer</span>
+                    <span class="admin-badge" style="background: rgba(168, 85, 247, 0.1); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.3);">🪄 Admin AI Generator</span>
                 </div>
             </div>
 
-            <div class="glass-card" style="padding: 2.5rem;">
-                <h2 style="font-size: 1.8rem; margin-bottom: 0.5rem;">Welcome Back</h2>
-                <p style="font-size: 0.95rem;">Sign in or create an account to start coding.</p>
+            <!-- Login / Register Glass Card -->
+            <div class="glass-card">
+                <h2 style="font-size: 1.8rem; margin-bottom: 0.3rem;">Get Started</h2>
+                <p style="font-size: 0.95rem; margin-bottom: 1.5rem;">Sign in or create an account to begin solving.</p>
                 
                 <div class="tabs">
                     <button class="tab-btn active" onclick="switchAuthTab('login')">Login</button>
@@ -52,7 +62,7 @@
 
                 <form id="auth-form" onsubmit="handleAuth(event)">
                     <div id="register-fields" style="display: none;">
-                        <label>Email</label>
+                        <label>Email Address</label>
                         <input type="email" id="auth-email" placeholder="coder@example.com">
                     </div>
                     <label>Username</label>
@@ -65,61 +75,72 @@
             </div>
         </section>
 
-        <!-- Dashboard Section -->
+        <!-- Main Dashboard Section -->
         <section id="dashboard-section" class="glass-card hidden">
             <div class="dashboard-header">
-                <h2 id="welcome-msg">Dashboard</h2>
-                <div class="admin-badge" id="admin-badge" style="display: none;">ADMIN</div>
+                <div>
+                    <h2 id="welcome-msg" style="margin-bottom: 0.2rem;">Welcome Back</h2>
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">Explore problems or manage your workspace.</p>
+                </div>
+                <div class="admin-badge" id="admin-badge" style="display: none;">ADMINISTRATOR</div>
             </div>
 
-            <!-- Admin: Add Problem -->
-            <div id="admin-panel" style="display: none;" class="panel">
-                <h3>Add New Problem</h3>
+            <!-- Admin Workspace Section -->
+            <div id="admin-panel" style="display: none;" class="panel ai-admin-workspace">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+                    <h3>✨ Admin Workspace & AI Problem Generator</h3>
+                    <button class="secondary-btn" onclick="toggleAIProblemModal()">🪄 Open AI Generator</button>
+                </div>
+
                 <form id="add-problem-form" onsubmit="handleAddProblem(event)">
-                    <input type="text" id="prob-title" required placeholder="Problem Title (e.g. Two Sum)">
-                    <textarea id="prob-desc" required placeholder="Problem Description..."></textarea>
+                    <input type="text" id="prob-title" required placeholder="Problem Title (e.g. Binary Search in Rotated Array)">
+                    <textarea id="prob-desc" required placeholder="Problem Description (Markdown supported)..."></textarea>
                     <div class="row">
-                        <input type="number" id="prob-time" step="0.1" value="1.0" required placeholder="Time Limit (s)">
+                        <input type="number" id="prob-time" step="0.1" value="1.0" required placeholder="Time Limit (seconds)">
                         <input type="number" id="prob-mem" value="256" required placeholder="Memory Limit (MB)">
                     </div>
-                    <input type="text" id="prob-tags" placeholder="Tags (comma separated, e.g. dp,math)">
+                    <input type="text" id="prob-tags" placeholder="Tags (e.g. binary-search, arrays, math)">
                     
                     <h4>Initial Test Case</h4>
-                    <textarea id="prob-input" required placeholder="Input Data"></textarea>
-                    <textarea id="prob-expected" required placeholder="Expected Output"></textarea>
+                    <textarea id="prob-input" required placeholder="Sample Input Data"></textarea>
+                    <textarea id="prob-expected" required placeholder="Expected Sample Output"></textarea>
                     
-                    <button type="submit" class="primary-btn">Create Problem</button>
+                    <button type="submit" class="primary-btn">Save Problem Manually</button>
                     <p id="admin-msg" class="success-msg"></p>
                 </form>
             </div>
 
-            <!-- User: Problems List -->
+            <!-- Available Problems List -->
             <div class="panel problems-list">
-                <h3>Available Problems</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h3>Available Problems</h3>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);" id="problems-count-badge">Loading...</span>
+                </div>
                 <div id="problems-container">
-                    <!-- Problems loaded via JS -->
+                    <!-- Problems loaded dynamically via script.js -->
                 </div>
             </div>
             
-            <!-- Submit Code Modal/Section -->
+            <!-- Submit Solution / Solve Panel (Split Workspace) -->
             <div id="submit-panel" class="hidden" style="margin-bottom: 2rem;">
-                <button class="text-btn" onclick="hideSubmitPanel()" style="margin-bottom: 1.5rem;">← Back to Problems</button>
+                <button class="text-btn" onclick="hideSubmitPanel()" style="margin-bottom: 1.5rem;">← Back to Problems List</button>
                 
                 <div class="split-layout">
-                    <!-- Left Side: Problem Statement -->
+                    <!-- Left Column: Problem Statement & Examples -->
                     <div class="panel split-left">
-                        <h3 id="submit-prob-title" style="font-size: 1.6rem; color: #fff; margin-bottom: 1.0rem;">Submit Solution</h3>
-                        <div id="submit-prob-desc" class="prob-desc" style="line-height: 1.8; margin-bottom: 0.5rem;"></div>
+                        <h3 id="submit-prob-title" style="font-size: 1.8rem; color: #fff; margin-bottom: 0.5rem;">Problem Title</h3>
+                        <div id="submit-prob-meta" class="meta" style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 1rem; margin-bottom: 1.2rem;"></div>
+                        <div id="submit-prob-desc" class="prob-desc"></div>
                     </div>
                     
-                    <!-- Right Side: Code Editor -->
+                    <!-- Right Column: Code Editor & Execution Results -->
                     <div class="panel split-right">
                         <form id="submit-code-form" onsubmit="handleSubmitCode(event)">
-                            <label style="display: flex; justify-content: space-between; margin-bottom: 0.8rem;">
-                                C++ Code
-                                <span style="font-size: 0.8rem; color: var(--primary);">C++</span>
-                            </label>
-                            <textarea id="code-editor" class="code-editor" required style="width: 100%; min-height: 400px; padding: 1.2rem; border-radius: 12px; font-size: 1rem;" spellcheck="false">#include <iostream>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                                <label style="margin: 0;">Solution Code (C++)</label>
+                                <span class="tag" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">C++ GCC 11</span>
+                            </div>
+                            <textarea id="code-editor" class="code-editor" required spellcheck="false">#include <iostream>
 using namespace std;
 
 int main() {
@@ -127,20 +148,177 @@ int main() {
     
     return 0;
 }</textarea>
-                            <button type="submit" class="primary-btn" id="submit-btn" style="margin-top: 1.2rem;">Submit Code</button>
+                            <button type="submit" class="primary-btn" id="submit-btn" style="margin-top: 1.2rem;">🚀 Run & Submit Code</button>
                         </form>
                         
+                        <!-- Verdict & AI Action Triggers -->
                         <div id="verdict-display" class="hidden">
-                            <h4>Verdict: <span id="verdict-status">WAITING</span></h4>
-                            <p id="verdict-time"></p>
+                            <h4>Verdict: <span id="verdict-status">SUBMITTED...</span></h4>
+                            <p id="verdict-time" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;"></p>
+                            
+                            <div class="verdict-actions">
+                                <button id="ai-tutor-btn" class="primary-btn ai-btn hidden" onclick="openAITutorModal()">
+                                    ✨ Ask AI Tutor Hints
+                                </button>
+                                <button id="ai-complexity-btn" class="secondary-btn hidden" onclick="fetchComplexityAnalysis()">
+                                    ⚡ Analyze Complexity
+                                </button>
+                            </div>
+
+                            <!-- Complexity Card Container -->
+                            <div id="complexity-card-container" class="hidden"></div>
                         </div>
                     </div>
                 </div>
             </div>
-
         </section>
     </main>
 
-    <script src="/static/script.js?v=6"></script>
+    <!-- AI Tutor Modal Drawer -->
+    <div id="ai-tutor-drawer" class="modal-backdrop hidden">
+        <div class="drawer-panel">
+            <div class="drawer-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span style="font-size: 1.3rem;">💡</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.1rem;">Socratic AI Tutor</h3>
+                        <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted);">Guided hints & debugging without full solution spoilers</p>
+                    </div>
+                </div>
+                <button class="text-btn" onclick="closeAITutorModal()">✕</button>
+            </div>
+            
+            <div class="drawer-body" id="tutor-drawer-body">
+                <div id="tutor-loading" class="tutor-section" style="text-align: center; padding: 2rem;">
+                    <p style="margin: 0; color: var(--primary);">Analyzing code & problem constraints...</p>
+                </div>
+
+                <div id="tutor-content" class="hidden">
+                    <div class="tutor-section">
+                        <h4>🔍 What Went Wrong?</h4>
+                        <p id="tutor-wrong-text" style="color: #cbd5e1; font-size: 0.95rem; margin: 0;"></p>
+                    </div>
+
+                    <div class="tutor-section">
+                        <h4>💡 Progressive Hints</h4>
+                        <div class="hint-accordion">
+                            <div class="hint-step">
+                                <strong style="color: #a5f3fc; font-size: 0.85rem;">Hint 1 (General Direction):</strong>
+                                <p id="hint-1-text" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                            </div>
+                            <div id="hint-2-container" class="hint-step locked">
+                                <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(2)">Unlock Hint 2</button>
+                                <p id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                            </div>
+                            <div id="hint-3-container" class="hint-step locked">
+                                <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(3)">Unlock Strong Hint</button>
+                                <p id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tutor-section">
+                        <h4>🧪 Edge Case to Consider</h4>
+                        <p id="tutor-edge-case" style="font-size: 0.9rem; color: #fef08a; margin: 0;"></p>
+                    </div>
+
+                    <div class="row" style="margin-bottom: 1rem;">
+                        <div class="tutor-section" style="flex: 1; margin: 0;">
+                            <h4>📍 Where to Look</h4>
+                            <p id="tutor-where" style="font-size: 0.85rem; margin: 0;"></p>
+                        </div>
+                        <div class="tutor-section" style="flex: 1; margin: 0;">
+                            <h4>🧠 Core Concept</h4>
+                            <p id="tutor-concept" style="font-size: 0.85rem; margin: 0;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Follow up Chat -->
+                    <div class="tutor-chat-container">
+                        <h4 style="font-size: 0.95rem; color: #a5f3fc; margin-bottom: 0.8rem;">Ask Follow-up Question</h4>
+                        <div id="chat-messages" class="chat-messages">
+                            <!-- Messages appended via JS -->
+                        </div>
+                        <div class="chat-input-row">
+                            <input type="text" id="chat-input" placeholder="Ask AI tutor e.g., 'Why does integer overflow happen here?'" style="margin: 0;">
+                            <button class="primary-btn ai-btn" style="width: auto; padding: 0 1.2rem;" onclick="sendTutorChat()">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin AI Generator Modal -->
+    <div id="ai-generator-modal" class="modal-backdrop hidden">
+        <div class="drawer-panel" style="width: 750px;">
+            <div class="drawer-header">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span style="font-size: 1.3rem;">🪄</span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.1rem;">AI Problem & Testcase Generator</h3>
+                        <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted);">Generate contest-ready problems with LLM structured output</p>
+                    </div>
+                </div>
+                <button class="text-btn" onclick="toggleAIProblemModal()">✕</button>
+            </div>
+            
+            <div class="drawer-body">
+                <div class="tutor-section">
+                    <div class="row">
+                        <div style="flex: 1;">
+                            <label>Topic / Algorithm</label>
+                            <input type="text" id="gen-topic" placeholder="e.g. Binary Search, Dynamic Programming">
+                        </div>
+                        <div style="flex: 0.6;">
+                            <label>Difficulty</label>
+                            <select id="gen-difficulty">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium" selected>Medium</option>
+                                <option value="Hard">Hard</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label>Tags</label>
+                    <input type="text" id="gen-tags" placeholder="e.g. binary-search, arrays">
+                    <label>Additional Instructions (Optional)</label>
+                    <input type="text" id="gen-instructions" placeholder="e.g. Codeforces style array search problem">
+                    
+                    <button class="primary-btn ai-btn" onclick="runAIProblemGenerator()">✨ Generate Problem with AI</button>
+                </div>
+
+                <!-- AI Output Review & Validation Workspace -->
+                <div id="gen-review-workspace" class="hidden">
+                    <h3 style="font-size: 1.1rem; color: #a5f3fc; margin-bottom: 1rem;">Review Generated Problem</h3>
+                    
+                    <input type="text" id="gen-out-title" placeholder="Title">
+                    <textarea id="gen-out-desc" style="min-height: 200px;" placeholder="Markdown Description"></textarea>
+                    
+                    <div class="row">
+                        <input type="number" id="gen-out-time" step="0.1" placeholder="Time Limit">
+                        <input type="number" id="gen-out-mem" placeholder="Memory Limit">
+                    </div>
+
+                    <h4 style="color: #a5f3fc; margin-top: 1rem;">Generated Test Cases</h4>
+                    <div id="gen-testcases-list">
+                        <!-- Rendered via JS -->
+                    </div>
+
+                    <!-- Validation with Reference Solution -->
+                    <div class="tutor-section" style="margin-top: 1.5rem;">
+                        <h4 style="color: #fef08a;">⚠️ Validate Test Cases (Reference Solution)</h4>
+                        <p style="font-size: 0.85rem; margin-bottom: 0.8rem;">Paste a trusted C++ reference solution below to run & verify AI expected outputs against actual execution.</p>
+                        <textarea id="gen-ref-code" class="code-editor" style="min-height: 180px;" placeholder="// Paste C++ reference solution code here..."></textarea>
+                        <button class="secondary-btn" style="margin-top: 0.8rem;" onclick="validateGeneratedTests()">🧪 Validate Testcases with C++ Binary</button>
+                        <div id="validation-results-box" style="margin-top: 1rem;"></div>
+                    </div>
+
+                    <button class="primary-btn" style="margin-top: 1.5rem;" onclick="saveGeneratedProblemToDB()">💾 Save Problem to Judgely</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=10"></script>
 </body>
 </html>

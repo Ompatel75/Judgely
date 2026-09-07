@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, Boolean, Enum as SQLEnum
+﻿from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, Boolean, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -61,3 +61,28 @@ class Submission(Base):
 
     user = relationship("User", back_populates="submissions")
     problem = relationship("Problem", back_populates="submissions")
+    complexity_analysis = relationship("AIComplexityAnalysis", back_populates="submission", uselist=False)
+
+class AIComplexityAnalysis(Base):
+    __tablename__ = "ai_complexity_analyses"
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), unique=True, nullable=False)
+    code_hash = Column(String(64), index=True, nullable=False)
+    time_complexity = Column(String(100), nullable=False)
+    space_complexity = Column(String(100), nullable=False)
+    performance = Column(String(50), nullable=False)
+    explanation = Column(Text, nullable=False)
+    operations_breakdown = Column(Text, nullable=True) # JSON string
+    optimizations = Column(Text, nullable=True) # JSON string
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    submission = relationship("Submission", back_populates="complexity_analysis")
+
+class AITutorConversation(Base):
+    __tablename__ = "ai_tutor_conversations"
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String(20), nullable=False) # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
