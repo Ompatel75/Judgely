@@ -1,14 +1,20 @@
-const API_URL = window.location.origin + "/api";
+﻿const API_URL = window.location.origin + "/api";
 let currentToken = null;
 let currentUser = null;
 let authMode = 'login'; // login or register
 let selectedProblemId = null;
+let currentSubmissionId = null;
 let pollInterval = null;
+
+// Global AI Generated Problem Cache for Admin review
+let currentAIGeneratedProblem = null;
+
+// --- UI Navigation & Auth ---
 
 function switchAuthTab(mode) {
     authMode = mode;
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+    if (event && event.target) event.target.classList.add('active');
     
     document.getElementById('register-fields').style.display = mode === 'register' ? 'block' : 'none';
     document.getElementById('auth-submit-btn').textContent = mode === 'register' ? 'Register' : 'Login';
@@ -21,7 +27,11 @@ function showDashboard() {
     document.getElementById('welcome-msg').textContent = `Welcome, ${currentUser.username}!`;
     
     const navLinks = document.getElementById('nav-links');
-    navLinks.innerHTML = `<button class="text-btn" onclick="logout()">Logout</button>`;
+    navLinks.innerHTML = `
+        <button class="text-btn" onclick="showProblemsListNav()">Problems</button>
+        ${currentUser.is_admin ? '<button class="text-btn" onclick="scrollToAdminPanel()">Admin Panel</button>' : ''}
+        <button class="text-btn" onclick="logout()">Logout</button>
+    `;
     
     if (currentUser.is_admin) {
         document.getElementById('admin-badge').style.display = 'block';
@@ -34,6 +44,18 @@ function showDashboard() {
     loadProblems();
 }
 
+function showProblemsListNav() {
+    hideSubmitPanel();
+}
+
+function scrollToAdminPanel() {
+    hideSubmitPanel();
+    const panel = document.getElementById('admin-panel');
+    if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
 function logout() {
     currentToken = null;
     currentUser = null;
@@ -41,7 +63,6 @@ function logout() {
     document.getElementById('dashboard-section').classList.add('hidden');
     document.getElementById('nav-links').innerHTML = '';
 }
-
 
 async function handleAuth(e) {
     e.preventDefault();
@@ -59,7 +80,6 @@ async function handleAuth(e) {
                 body: JSON.stringify({ username, email, password })
             });
             if (!res.ok) throw new Error((await res.json()).detail || "Registration failed");
-
             await loginRequest(username, password);
         } else {
             await loginRequest(username, password);
@@ -80,7 +100,7 @@ async function loginRequest(username, password) {
         body: formData
     });
     
-    if (!res.ok) throw new Error("Invalid credentials");
+    if (!res.ok) throw new Error("Invalid username or password");
     
     const data = await res.json();
     currentToken = data.access_token;
@@ -95,6 +115,70 @@ async function fetchUserProfile() {
         currentUser = await res.json();
         showDashboard();
     }
+}
+
+// --- Problems Management ---
+
+async function loadProblems() {
+    const res = await fetch(`${API_URL}/problems/`);
+    const problems = await res.json();
+    
+    let statuses = {};
+    if (currentToken) {
+        try {
+            const statRes = await fetch(`${API_URL}/submissions/me/status`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            if (statRes.ok) {
+                statuses = await statRes.json();
+            }
+        } catch (e) {}
+    }
+    
+    const container = document.getElementById('problems-container');
+    const badge = document.getElementById('problems-count-badge');
+    if (badge) badge.textContent = `${problems.length} Problems Total`;
+    
+    container.innerHTML = '';
+    
+    if (problems.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding: 2rem;">No problems available yet. Log in as Admin to create or generate problems.</p>';
+        return;
+    }
+    
+    problems.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'problem-card';
+        
+        let statusBadge = '';
+        const v = statuses[p.id];
+        if (v === 'AC') {
+            statusBadge = '<span class="status-badge ac-badge">✓ Solved</span>';
+        } else if (v && v !== 'PENDING' && v !== 'RUNNING') {
+            statusBadge = '<span class="status-badge wa-badge">✗ Attempted</span>';
+        }
+
+        card.innerHTML = `
+            <div>
+                <h4 style="display:flex; align-items:center; gap:0.5rem;">
+                    ${p.title}
+                    ${statusBadge}
+                </h4>
+                <div class="tags-container">
+                    ${p.tags ? p.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : ''}
+                </div>
+                <div class="meta" style="margin-top: 0.5rem;">
+                    <span>⏳ ${p.time_limit}s</span>
+                    <span>💾 ${p.memory_limit}MB</span>
+                </div>
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+                ${currentUser && currentUser.is_admin ? `<button class="solve-btn delete-btn" onclick="deleteProblem(${p.id})">Delete</button>` : ''}
+                <button class="solve-btn" onclick='openSubmitPanel(${p.id}, ${JSON.stringify(p.title)}, ${JSON.stringify(p.description).replace(/'/g, "&#39;")})'>Solve</button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
 }
 
 async function handleAddProblem(e) {
@@ -138,10 +222,9 @@ async function handleAddProblem(e) {
         });
         
         msgEl.textContent = "Problem created successfully!";
-        msgEl.style.color = "var(--success)";
+        msgEl.style.color = "var(--accent)";
         e.target.reset();
         loadProblems();
-        
         setTimeout(() => msgEl.textContent = "", 3000);
         
     } catch (err) {
@@ -150,67 +233,8 @@ async function handleAddProblem(e) {
     }
 }
 
-async function loadProblems() {
-    const res = await fetch(`${API_URL}/problems/`);
-    const problems = await res.json();
-    
-    let statuses = {};
-    if (currentToken) {
-        try {
-            const statRes = await fetch(`${API_URL}/submissions/me/status`, {
-                headers: { 'Authorization': `Bearer ${currentToken}` }
-            });
-            if (statRes.ok) {
-                statuses = await statRes.json();
-            }
-        } catch (e) {}
-    }
-    
-    const container = document.getElementById('problems-container');
-    container.innerHTML = '';
-    
-    if (problems.length === 0) {
-        container.innerHTML = '<p>No problems available yet.</p>';
-        return;
-    }
-    
-    problems.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'problem-card';
-        
-        let statusBadge = '';
-        const v = statuses[p.id];
-        if (v === 'AC') {
-            statusBadge = '<span class="status-badge ac-badge">✓ Solved</span>';
-        } else if (v && v !== 'PENDING' && v !== 'RUNNING') {
-            statusBadge = '<span class="status-badge wa-badge">✗ Attempted</span>';
-        }
-
-        card.innerHTML = `
-            <div>
-                <h4 style="display:flex; align-items:center; gap:0.5rem;">
-                    ${p.title}
-                    ${statusBadge}
-                </h4>
-                <div class="tags-container">
-                    ${p.tags ? p.tags.split(',').map(t => `<span class="tag">${t.trim()}</span>`).join('') : ''}
-                </div>
-                <div class="meta" style="margin-top: 0.5rem;">
-                    <span>⏳ ${p.time_limit}s</span>
-                    <span>💾 ${p.memory_limit}MB</span>
-                </div>
-            </div>
-            <div style="display:flex; gap:0.5rem;">
-                ${currentUser && currentUser.is_admin ? `<button class="solve-btn" style="color:var(--error); border-color:var(--error);" onclick="deleteProblem(${p.id})">Delete</button>` : ''}
-                <button class="solve-btn" onclick='openSubmitPanel(${p.id}, ${JSON.stringify(p.title)}, ${JSON.stringify(p.description).replace(/'/g, "&#39;")})'>Solve</button>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-}
-
 async function deleteProblem(id) {
-    if(!confirm("Are you sure you want to delete this problem?")) return;
+    if (!confirm("Are you sure you want to delete this problem?")) return;
     try {
         const res = await fetch(`${API_URL}/problems/${id}`, {
             method: 'DELETE',
@@ -221,7 +245,9 @@ async function deleteProblem(id) {
     } catch (err) {
         alert(err.message);
     }
-}   
+}
+
+// --- Submit Workspace & Code Editor ---
 
 document.addEventListener('DOMContentLoaded', () => {
     const editor = document.getElementById('code-editor');
@@ -240,27 +266,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function openSubmitPanel(id, title, desc) {
     selectedProblemId = id;
+    currentSubmissionId = null;
     document.querySelector('.problems-list').classList.add('hidden');
-    if(document.getElementById('admin-panel')) document.getElementById('admin-panel').classList.add('hidden');
+    if (document.getElementById('admin-panel')) document.getElementById('admin-panel').classList.add('hidden');
     
     const panel = document.getElementById('submit-panel');
     panel.classList.remove('hidden');
     document.getElementById('submit-prob-title').textContent = title;
-    document.getElementById('submit-prob-desc').textContent = desc;
+    document.getElementById('submit-prob-desc').innerHTML = desc.replace(/\n/g, '<br>');
     
-    // Reset verdict
+    // Reset verdict & AI triggers
     document.getElementById('verdict-display').classList.add('hidden');
-    document.getElementById('submit-code-form').reset();
+    document.getElementById('ai-tutor-btn').classList.add('hidden');
+    document.getElementById('ai-complexity-btn').classList.add('hidden');
+    document.getElementById('complexity-card-container').classList.add('hidden');
     document.getElementById('submit-btn').disabled = false;
-    if(pollInterval) clearInterval(pollInterval);
+    if (pollInterval) clearInterval(pollInterval);
 }
 
 function hideSubmitPanel() {
     selectedProblemId = null;
+    currentSubmissionId = null;
     document.getElementById('submit-panel').classList.add('hidden');
     document.querySelector('.problems-list').classList.remove('hidden');
-    if(currentUser.is_admin) document.getElementById('admin-panel').classList.remove('hidden');
-    if(pollInterval) clearInterval(pollInterval);
+    if (currentUser && currentUser.is_admin) document.getElementById('admin-panel').classList.remove('hidden');
+    if (pollInterval) clearInterval(pollInterval);
 }
 
 async function handleSubmitCode(e) {
@@ -276,6 +306,10 @@ async function handleSubmitCode(e) {
     vStatus.textContent = "SUBMITTED...";
     vStatus.className = 'verdict-running';
     vTime.textContent = "";
+    
+    document.getElementById('ai-tutor-btn').classList.add('hidden');
+    document.getElementById('ai-complexity-btn').classList.add('hidden');
+    document.getElementById('complexity-card-container').classList.add('hidden');
 
     try {
         const res = await fetch(`${API_URL}/submissions/`, {
@@ -293,6 +327,7 @@ async function handleSubmitCode(e) {
         
         if (!res.ok) throw new Error("Submission failed");
         const sub = await res.json();
+        currentSubmissionId = sub.id;
         
         pollVerdict(sub.id);
         
@@ -319,11 +354,16 @@ function pollVerdict(subId) {
                 clearInterval(pollInterval);
                 btn.disabled = false;
                 
-                // Color coding
-                if (data.verdict === "AC") vStatus.className = 'verdict-ac';
-                else if (data.verdict === "WA") vStatus.className = 'verdict-wa';
-                else if (data.verdict === "TLE") vStatus.className = 'verdict-tle';
-                else vStatus.className = 'verdict-re';
+                if (data.verdict === "AC") {
+                    vStatus.className = 'verdict-ac';
+                    document.getElementById('ai-complexity-btn').classList.remove('hidden');
+                } else {
+                    if (data.verdict === "WA") vStatus.className = 'verdict-wa';
+                    else if (data.verdict === "TLE") vStatus.className = 'verdict-tle';
+                    else vStatus.className = 'verdict-re';
+                    
+                    document.getElementById('ai-tutor-btn').classList.remove('hidden');
+                }
                 
                 if (data.execution_time) {
                     vTime.textContent = `Time: ${data.execution_time.toFixed(3)}s`;
@@ -335,5 +375,428 @@ function pollVerdict(subId) {
         } catch (err) {
             console.error("Polling error", err);
         }
-    }, 1000); // poll every 1 second
+    }, 1000);
+}
+
+// --- Feature 1: Socratic AI Tutor Modal & Chat ---
+
+async function openAITutorModal() {
+    if (!currentSubmissionId) return;
+    const drawer = document.getElementById('ai-tutor-drawer');
+    drawer.classList.remove('hidden');
+    
+    document.getElementById('tutor-loading').classList.remove('hidden');
+    document.getElementById('tutor-content').classList.add('hidden');
+    
+    try {
+        const res = await fetch(`${API_URL}/ai/tutor/${currentSubmissionId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (!res.ok) throw new Error("Failed to load AI Tutor hints");
+        
+        const data = await res.json();
+        
+        document.getElementById('tutor-wrong-text').textContent = data.what_went_wrong;
+        document.getElementById('hint-1-text').textContent = data.hint_1;
+        
+        // Setup progressive hints
+        const h2Container = document.getElementById('hint-2-container');
+        h2Container.className = 'hint-step locked';
+        h2Container.innerHTML = `
+            <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(2, ${JSON.stringify(data.hint_2).replace(/"/g, '&quot;')})">Unlock Hint 2</button>
+            <p id="hint-2-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+        `;
+        
+        const h3Container = document.getElementById('hint-3-container');
+        h3Container.className = 'hint-step locked';
+        h3Container.innerHTML = `
+            <button class="secondary-btn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="unlockHint(3, ${JSON.stringify(data.strong_hint).replace(/"/g, '&quot;')})">Unlock Strong Hint</button>
+            <p id="hint-3-text" class="hidden" style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;"></p>
+        `;
+        
+        document.getElementById('tutor-edge-case').textContent = data.edge_case || "Check N=1 or Maximum constraint boundaries.";
+        document.getElementById('tutor-where').textContent = data.where_to_look || "Main logic loop";
+        document.getElementById('tutor-concept').textContent = data.concept || "Algorithms & Data Structures";
+        
+        document.getElementById('tutor-loading').classList.add('hidden');
+        document.getElementById('tutor-content').classList.remove('hidden');
+        
+        loadTutorChatHistory();
+        
+    } catch (err) {
+        document.getElementById('tutor-loading').innerHTML = `<p style="color:var(--error)">${err.message}</p>`;
+    }
+}
+
+function unlockHint(stepNum, text) {
+    if (stepNum === 2) {
+        const container = document.getElementById('hint-2-container');
+        container.className = 'hint-step';
+        container.innerHTML = `
+            <strong style="color: #a5f3fc; font-size: 0.85rem;">Hint 2 (Logic Focus):</strong>
+            <p style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${text}</p>
+        `;
+    } else if (stepNum === 3) {
+        const container = document.getElementById('hint-3-container');
+        container.className = 'hint-step';
+        container.innerHTML = `
+            <strong style="color: #fef08a; font-size: 0.85rem;">Strong Hint:</strong>
+            <p style="font-size: 0.9rem; margin-top: 0.3rem; margin-bottom: 0;">${text}</p>
+        `;
+    }
+}
+
+function closeAITutorModal() {
+    document.getElementById('ai-tutor-drawer').classList.add('hidden');
+}
+
+async function loadTutorChatHistory() {
+    if (!currentSubmissionId) return;
+    try {
+        const res = await fetch(`${API_URL}/ai/tutor/${currentSubmissionId}/history`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+            const history = await res.json();
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = '';
+            history.forEach(msg => {
+                const b = document.createElement('div');
+                b.className = `chat-bubble ${msg.role}`;
+                b.textContent = msg.content;
+                container.appendChild(b);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+    } catch (e) {}
+}
+
+async function sendTutorChat() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg || !currentSubmissionId) return;
+    
+    input.value = '';
+    const container = document.getElementById('chat-messages');
+    
+    // Append user bubble
+    const userB = document.createElement('div');
+    userB.className = 'chat-bubble user';
+    userB.textContent = msg;
+    container.appendChild(userB);
+    container.scrollTop = container.scrollHeight;
+    
+    // Append loading assistant bubble
+    const loadingB = document.createElement('div');
+    loadingB.className = 'chat-bubble assistant';
+    loadingB.textContent = 'Thinking...';
+    container.appendChild(loadingB);
+    container.scrollTop = container.scrollHeight;
+
+    try {
+        const res = await fetch(`${API_URL}/ai/tutor/${currentSubmissionId}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ message: msg })
+        });
+        
+        if (!res.ok) throw new Error("Failed to send message");
+        const data = await res.json();
+        
+        loadingB.textContent = data.reply;
+        container.scrollTop = container.scrollHeight;
+    } catch (err) {
+        loadingB.textContent = "Error: " + err.message;
+    }
+}
+
+// --- Feature 2: Time & Space Complexity Analyzer ---
+
+async function fetchComplexityAnalysis() {
+    if (!currentSubmissionId) return;
+    const container = document.getElementById('complexity-card-container');
+    container.classList.remove('hidden');
+    container.innerHTML = '<p style="color:var(--primary); text-align:center; padding: 1rem;">⚡ Analyzing code complexity with LangChain...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/ai/complexity/${currentSubmissionId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        
+        if (!res.ok) throw new Error("Complexity analysis failed");
+        const data = await res.json();
+        
+        let opsHtml = '';
+        if (data.operations_breakdown && data.operations_breakdown.length > 0) {
+            opsHtml = `
+                <table class="ops-table">
+                    <thead>
+                        <tr><th>Operation</th><th>Complexity</th><th>Ref</th></tr>
+                    </thead>
+                    <tbody>
+                        ${data.operations_breakdown.map(o => `
+                            <tr>
+                                <td><code>${o.operation}</code></td>
+                                <td style="color:var(--accent); font-weight:600;">${o.complexity}</td>
+                                <td style="color:var(--text-muted);">${o.line_reference || '-'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        let optsHtml = '';
+        if (data.optimizations && data.optimizations.length > 0) {
+            optsHtml = `
+                <div style="margin-top: 1rem;">
+                    <h5 style="color: #a5f3fc; font-size: 0.85rem; margin-bottom: 0.4rem;">💡 Optimization Suggestions</h5>
+                    <ul style="padding-left: 1.2rem; font-size: 0.85rem; color: var(--text-muted);">
+                        ${data.optimizations.map(opt => `<li style="margin-bottom: 0.3rem;">${opt}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="complexity-card">
+                <h4 style="font-size: 1.1rem; color: var(--accent); margin-bottom: 1rem;">⚡ Code Complexity Analysis</h4>
+                
+                <div class="complexity-grid">
+                    <div class="complexity-box">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">TIME COMPLEXITY</span>
+                        <div class="complexity-value">${data.time_complexity}</div>
+                    </div>
+                    <div class="complexity-box">
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">SPACE COMPLEXITY</span>
+                        <div class="complexity-value" style="color: var(--primary);">${data.space_complexity}</div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.8rem;">
+                    <span style="font-size: 0.85rem;">Performance Rating:</span>
+                    <span class="tag" style="background:rgba(16,185,129,0.2); color:#34d399;">${data.performance}</span>
+                </div>
+
+                <p style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.6; margin-bottom: 0.8rem;">${data.explanation}</p>
+                
+                ${opsHtml}
+                ${optsHtml}
+            </div>
+        `;
+
+    } catch (err) {
+        container.innerHTML = `<p style="color:var(--error); text-align:center;">${err.message}</p>`;
+    }
+}
+
+// --- Feature 3: Admin AI Problem & Test Case Generator ---
+
+function toggleAIProblemModal() {
+    const modal = document.getElementById('ai-generator-modal');
+    modal.classList.toggle('hidden');
+}
+
+async function runAIProblemGenerator() {
+    const topic = document.getElementById('gen-topic').value.trim();
+    if (!topic) {
+        alert("Please enter a problem topic/algorithm (e.g. Binary Search)");
+        return;
+    }
+    
+    const difficulty = document.getElementById('gen-difficulty').value;
+    const tags = document.getElementById('gen-tags').value;
+    const instructions = document.getElementById('gen-instructions').value;
+    
+    const reviewWorkspace = document.getElementById('gen-review-workspace');
+    reviewWorkspace.classList.remove('hidden');
+    reviewWorkspace.innerHTML = '<p style="color:var(--purple); text-align:center; padding: 2rem;">🪄 Generating contest-grade problem & testcases with LangChain...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/problems/generate-ai`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ topic, difficulty, tags, instructions })
+        });
+
+        if (!res.ok) throw new Error("AI Problem generation failed");
+        const probData = await res.json();
+        currentAIGeneratedProblem = probData;
+
+        renderAIProblemReview(probData);
+
+    } catch (err) {
+        reviewWorkspace.innerHTML = `<p style="color:var(--error); text-align:center;">${err.message}</p>`;
+    }
+}
+
+function renderAIProblemReview(prob) {
+    const reviewWorkspace = document.getElementById('gen-review-workspace');
+    
+    let tcHtml = '';
+    prob.test_cases.forEach((tc, i) => {
+        tcHtml += `
+            <div class="test-review-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                    <span style="font-weight:700; font-size:0.85rem; color:#a5f3fc;">
+                        ${tc.description || (tc.is_hidden ? `Hidden Test ${i+1}` : `Sample Test ${i+1}`)}
+                    </span>
+                    <span class="status-badge ${tc.is_hidden ? 'wa-badge' : 'ac-badge'}">
+                        ${tc.is_hidden ? 'Hidden' : 'Sample'}
+                    </span>
+                </div>
+                <label style="font-size:0.75rem;">INPUT</label>
+                <pre style="background:#000; padding:0.5rem; border-radius:6px; font-size:0.8rem;">${tc.input_data}</pre>
+                <label style="font-size:0.75rem; margin-top:0.4rem;">EXPECTED OUTPUT</label>
+                <pre style="background:#000; padding:0.5rem; border-radius:6px; font-size:0.8rem;">${tc.expected_output}</pre>
+            </div>
+        `;
+    });
+
+    reviewWorkspace.innerHTML = `
+        <h3 style="font-size: 1.2rem; color: #a5f3fc; margin-bottom: 1rem;">Review Generated Problem</h3>
+        
+        <label>Title</label>
+        <input type="text" id="gen-out-title" value="${prob.title.replace(/"/g, '&quot;')}">
+        
+        <label>Description (Markdown)</label>
+        <textarea id="gen-out-desc" style="min-height: 180px;">${prob.description}</textarea>
+        
+        <div class="row">
+            <div>
+                <label>Time Limit (s)</label>
+                <input type="number" id="gen-out-time" step="0.1" value="${prob.time_limit}">
+            </div>
+            <div>
+                <label>Memory Limit (MB)</label>
+                <input type="number" id="gen-out-mem" value="${prob.memory_limit}">
+            </div>
+        </div>
+
+        <label>Tags</label>
+        <input type="text" id="gen-out-tags" value="${prob.tags || ''}">
+
+        <h4 style="color: #a5f3fc; margin-top: 1.2rem; margin-bottom: 0.8rem;">Generated Test Cases (${prob.test_cases.length})</h4>
+        <div>${tcHtml}</div>
+
+        <!-- Validation Workspace -->
+        <div class="tutor-section" style="margin-top: 1.5rem;">
+            <h4 style="color: #fef08a;">⚠️ Validate Testcases against C++ Reference Solution</h4>
+            <p style="font-size: 0.85rem; margin-bottom: 0.8rem; color:var(--text-muted);">
+                Paste your C++ solution below. The system will compile it and execute it against AI input data to verify correctness.
+            </p>
+            <textarea id="gen-ref-code" class="code-editor" style="min-height: 160px;" placeholder="// Paste reference C++ solution here..."></textarea>
+            <button class="secondary-btn" style="margin-top: 0.8rem;" onclick="validateGeneratedTests()">🧪 Validate Testcases with C++ Binary</button>
+            <div id="validation-results-box" style="margin-top: 1rem;"></div>
+        </div>
+
+        <button class="primary-btn" style="margin-top: 1.5rem;" onclick="saveGeneratedProblemToDB()">💾 Save Problem to Judgely</button>
+    `;
+}
+
+async function validateGeneratedTests() {
+    if (!currentAIGeneratedProblem) return;
+    const refCode = document.getElementById('gen-ref-code').value.trim();
+    if (!refCode) {
+        alert("Please paste your reference C++ solution code to validate.");
+        return;
+    }
+
+    const box = document.getElementById('validation-results-box');
+    box.innerHTML = '<p style="color:var(--primary); font-size:0.85rem;">Compiling solution and validating testcases...</p>';
+
+    try {
+        const res = await fetch(`${API_URL}/problems/validate-tests`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({
+                cpp_solution: refCode,
+                test_cases: currentAIGeneratedProblem.test_cases
+            })
+        });
+
+        if (!res.ok) throw new Error((await res.json()).detail || "Validation failed");
+        const valRes = await res.json();
+
+        let valHtml = `
+            <div style="background:rgba(0,0,0,0.4); padding:1rem; border-radius:8px; border:1px solid var(--glass-border);">
+                <div style="font-weight:700; font-size:0.9rem; margin-bottom:0.6rem;">
+                    Validation Results: <span style="color:#34d399;">${valRes.matched} Matched</span> / <span style="color:#f87171;">${valRes.mismatched} Mismatched</span>
+                </div>
+        `;
+
+        valRes.results.forEach(r => {
+            const badgeClass = r.status === 'MATCH' ? 'badge-match' : 'badge-mismatch';
+            valHtml += `
+                <div style="font-size:0.8rem; margin-bottom:0.5rem; padding:0.4rem; background:rgba(255,255,255,0.02); border-radius:6px;">
+                    <span class="${badgeClass}">${r.status}</span> Test #${r.index}
+                    ${r.status !== 'MATCH' ? `<div style="color:#f87171; margin-top:0.2rem;">Actual: ${r.actual_output} | Expected: ${r.expected_output}</div>` : ''}
+                </div>
+            `;
+        });
+
+        valHtml += '</div>';
+        box.innerHTML = valHtml;
+
+    } catch (err) {
+        box.innerHTML = `<p style="color:var(--error); font-size:0.85rem;">Validation Error: ${err.message}</p>`;
+    }
+}
+
+async function saveGeneratedProblemToDB() {
+    if (!currentAIGeneratedProblem) return;
+
+    const title = document.getElementById('gen-out-title').value;
+    const description = document.getElementById('gen-out-desc').value;
+    const time_limit = parseFloat(document.getElementById('gen-out-time').value);
+    const memory_limit = parseInt(document.getElementById('gen-out-mem').value);
+    const tags = document.getElementById('gen-out-tags').value;
+
+    try {
+        const probRes = await fetch(`${API_URL}/problems/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${currentToken}`
+            },
+            body: JSON.stringify({ title, description, time_limit, memory_limit, tags })
+        });
+
+        if (!probRes.ok) throw new Error("Failed to save problem");
+        const prob = await probRes.json();
+
+        // Save all testcases
+        for (const tc of currentAIGeneratedProblem.test_cases) {
+            await fetch(`${API_URL}/problems/${prob.id}/testcases`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentToken}`
+                },
+                body: JSON.stringify({
+                    input_data: tc.input_data,
+                    expected_output: tc.expected_output,
+                    is_hidden: tc.is_hidden
+                })
+            });
+        }
+
+        alert("AI Problem and Testcases successfully saved to Judgely database!");
+        toggleAIProblemModal();
+        loadProblems();
+
+    } catch (err) {
+        alert("Error saving problem: " + err.message);
+    }
 }
