@@ -67,6 +67,7 @@ function showDashboard() {
     navLinks.innerHTML = `
         <button class="text-btn" onclick="showProblemsListNav()">Problems</button>
         <button class="text-btn" onclick="showProfileSection()">Profile</button>
+        <button class="text-btn" onclick="showInterviewSection()">Interview</button>
         ${currentUser.is_admin ? '<button class="text-btn" onclick="scrollToAdminPanel()">Admin Panel</button>' : ''}
         <button class="text-btn" onclick="logout()">Logout</button>
     `;
@@ -93,12 +94,14 @@ function showProblemsListNav() {
 
 function showDashboardSection() {
     document.getElementById('profile-section').classList.add('hidden');
+    document.getElementById('interview-section').classList.add('hidden');
     document.getElementById('dashboard-section').classList.remove('hidden');
 }
 
 async function showProfileSection() {
     hideSubmitPanel();
     document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('interview-section').classList.add('hidden');
     const profileSec = document.getElementById('profile-section');
     profileSec.classList.remove('hidden');
 
@@ -129,6 +132,9 @@ async function showProfileSection() {
     } catch (e) {
         console.error("Failed to load profile stats", e);
     }
+
+    // Fetch Analytics and Render Chart
+    fetchAnalyticsAndRenderChart();
 
     // Fetch AI Chat History
     loadProfileChatHistory();
@@ -1152,4 +1158,239 @@ function openReviewChatModal(chatType, targetId, titleText) {
 function closeReviewChatModal() {
     const modal = document.getElementById('review-chat-modal');
     if (modal) modal.classList.add('hidden');
+}
+
+
+// ==========================================
+// ADVANCED AI FEATURES ADDED
+// ==========================================
+
+let currentInterviewSession = null;
+let topicChartInstance = null;
+
+// Show Interview Section
+function showInterviewSection() {
+    document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('profile-section').classList.add('hidden');
+    document.getElementById('interview-section').classList.remove('hidden');
+}
+
+// Analytics Chart Rendering
+async function fetchAnalyticsAndRenderChart() {
+    try {
+        const res = await fetch(`${API_URL}/analytics/me`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            renderTopicChart(data.topic_stats);
+        }
+    } catch(e) {
+        console.error("Chart rendering failed", e);
+    }
+}
+
+function renderTopicChart(stats) {
+    const ctx = document.getElementById('topicChart');
+    if (!ctx) return;
+    
+    if (topicChartInstance) {
+        topicChartInstance.destroy();
+    }
+    
+    const labels = stats.map(s => s.topic);
+    const data = stats.map(s => s.accepted);
+    const bgColors = stats.map(s => {
+        if(s.difficulty === 'Easy') return '#94a3b8';
+        if(s.difficulty === 'Medium') return '#34d399';
+        if(s.difficulty === 'Hard') return '#c084fc';
+        return '#cbd5e1';
+    });
+
+    topicChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Problems Solved',
+                data: data,
+                backgroundColor: bgColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Practice Plan
+async function generatePracticePlan() {
+    const contentBox = document.getElementById('practice-plan-content');
+    contentBox.innerHTML = '<div class="loading-spinner"></div> Generating Personalized Plan...';
+    
+    try {
+        const res = await fetch(`${API_URL}/analytics/practice-plan`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if(res.ok) {
+            const data = await res.json();
+            contentBox.innerHTML = renderMarkdown(data.plan_data);
+        }
+    } catch(e) {
+        contentBox.innerHTML = 'Failed to generate plan.';
+    }
+}
+
+// Interview Logic
+async function startInterview() {
+    const topic = document.getElementById('interview-topic').value || 'Data Structures';
+    const difficulty = document.getElementById('interview-difficulty').value;
+    
+    document.getElementById('interview-chat-log').innerHTML = 'Starting...';
+    document.getElementById('interview-setup').style.display = 'none';
+    document.getElementById('interview-workspace').style.display = 'grid';
+    
+    try {
+        const res = await fetch(`${API_URL}/interview/start`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({topic, difficulty})
+        });
+        if (res.ok) {
+            const data = await res.json();
+            currentInterviewSession = data.session_id;
+            document.getElementById('interview-chat-log').innerHTML = '<div style="color:var(--primary);">Interviewer: Hello! Ready to start the interview?</div>';
+        }
+    } catch(e) {
+        alert("Failed to start interview.");
+    }
+}
+
+async function sendInterviewMsg() {
+    const input = document.getElementById('interview-msg');
+    const msg = input.value;
+    if(!msg) return;
+    
+    input.value = '';
+    const log = document.getElementById('interview-chat-log');
+    log.innerHTML += `<div style="text-align:right; color:#fff; margin:10px 0;">You: ${msg}</div>`;
+    
+    try {
+        const res = await fetch(`${API_URL}/interview/${currentInterviewSession}/chat`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({message: msg})
+        });
+        if(res.ok) {
+            const data = await res.json();
+            log.innerHTML += `<div style="color:var(--primary); margin:10px 0;">Interviewer: ${renderMarkdown(data.reply)}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+async function finishInterview() {
+    document.getElementById('interview-eval-box').style.display = 'block';
+    const evalContent = document.getElementById('interview-eval-content');
+    evalContent.innerHTML = '<div class="loading-spinner"></div> Evaluating Interview...';
+    
+    try {
+        const res = await fetch(`${API_URL}/interview/${currentInterviewSession}/evaluate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if(res.ok) {
+            const data = await res.json();
+            evalContent.innerHTML = `
+                <p><strong>Problem Solving:</strong> ${data.problem_solving_score}/10</p>
+                <p><strong>DSA:</strong> ${data.dsa_score}/10</p>
+                <p><strong>Code Quality:</strong> ${data.code_quality_score}/10</p>
+                <p><strong>Communication:</strong> ${data.communication_score}/10</p>
+                <h4>Strengths</h4><p>${data.strengths}</p>
+                <h4>Improvement Plan</h4><p>${data.improvement_plan}</p>
+            `;
+        }
+    } catch(e) {
+        evalContent.innerHTML = 'Evaluation failed.';
+    }
+}
+
+function closeAIReviewModal() {
+    document.getElementById('ai-review-modal').classList.add('hidden');
+}
+
+// AI Code Review Modal
+async function getAIReview(subId) {
+    if (!subId) {
+        alert("Please submit code first to get an AI Review.");
+        return;
+    }
+    document.getElementById('ai-review-modal').classList.remove('hidden');
+    document.getElementById('ai-review-modal').style.display = 'flex';
+    const contentBox = document.getElementById('ai-review-content');
+    contentBox.innerHTML = '<div class="loading-spinner"></div> Analyzing Code with MNC Standards...';
+    
+    try {
+        const res = await fetch(`${API_URL}/reviews/${subId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if(res.ok) {
+            const data = await res.json();
+            contentBox.innerHTML = `
+                <h3>Correctness: ${data.correctness}</h3>
+                <p><strong>Time Complexity:</strong> ${data.time_complexity}</p>
+                <p><strong>Space Complexity:</strong> ${data.space_complexity}</p>
+                <div style="background: rgba(16,185,129,0.1); border: 1px solid var(--accent); padding:1rem; border-radius:8px; margin-top:1rem;">
+                    <h4>🏢 MNC Production Standards</h4>
+                    ${renderMarkdown(data.mnc_quality_standards || 'Looks good.')}
+                </div>
+                <div style="margin-top:1rem;">
+                    <h4>Optimizations</h4>
+                    ${renderMarkdown(data.optimizations)}
+                </div>
+            `;
+        } else {
+             contentBox.innerHTML = 'Failed to generate review. Please try again later.';
+        }
+    } catch(e) {
+        contentBox.innerHTML = 'Failed to generate review.';
+    }
+}
+
+// Progressive Hints Logic
+async function getNextProgressiveHint() {
+    const container = document.getElementById('progressive-hints-container');
+    const btn = event.target;
+    btn.textContent = 'Loading...';
+    
+    try {
+        const res = await fetch(`${API_URL}/hints/${selectedProblemId}/next`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if(res.ok) {
+            const data = await res.json();
+            if (data.level === 1) container.innerHTML = ''; // clear on first hint
+            container.innerHTML += `
+                <div style="margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem;">
+                    <strong style="color: #cbd5e1;">Hint ${data.level}:</strong>
+                    <div style="margin-top: 0.3rem;">${renderMarkdown(data.content)}</div>
+                </div>
+            `;
+            if(data.level >= 5 || data.message) {
+                btn.style.display = 'none';
+            }
+        }
+    } catch(e) {
+        console.error("Failed to load hint.", e);
+    } finally {
+        if(btn.style.display !== 'none') btn.textContent = 'Next Hint →';
+    }
 }

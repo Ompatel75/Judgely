@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Judgely AI — Competitive Programming Platform</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=12">
+    <link rel="stylesheet" href="/static/style.css?v=13">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
 </head>
 <body>
     <div id="bg-blob1" class="blob"></div>
@@ -129,6 +131,17 @@
                         <h3 id="submit-prob-title" style="font-size: 1.8rem; color: #fff; margin-bottom: 0.5rem;">Problem Title</h3>
                         <div id="submit-prob-meta" class="meta" style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 1rem; margin-bottom: 1.2rem;"></div>
                         <div id="submit-prob-desc" class="prob-desc"></div>
+                        
+                        <!-- Progressive Hints Panel -->
+                        <div class="panel" style="margin-top: 1.5rem; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h4 style="margin: 0; color: #34d399;">💡 AI Progressive Hints</h4>
+                                <button class="icon-btn" style="color: #34d399; font-size: 0.9rem;" onclick="getNextProgressiveHint()">Next Hint →</button>
+                            </div>
+                            <div id="progressive-hints-container" style="margin-top: 1rem; font-size: 0.9rem;">
+                                <p class="text-muted">Stuck? Click 'Next Hint' to get a conceptual push.</p>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Right Column: Code Editor & Execution Results -->
@@ -155,6 +168,7 @@ int main() {
                             <p id="verdict-time" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0.3rem;"></p>
                             
                             <div class="verdict-actions">
+                                <button class="secondary-btn" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16,185,129,0.3);" onclick="getAIReview(currentSubmissionId)">🤖 AI Code Review (MNC)</button>
                                 <button id="ai-tutor-btn" class="primary-btn ai-btn hidden" onclick="openAITutorModal()">
                                     ✨ Ask AI Tutor Hints
                                 </button>
@@ -212,6 +226,45 @@ int main() {
                 </div>
             </div>
         </section>
+    
+        <!-- AI Mock Interview Section -->
+        <section id="interview-section" class="glass-card hidden">
+            <div class="dashboard-header">
+                <div>
+                    <h2>AI Mock Interview</h2>
+                    <p class="text-muted" style="margin:0; font-size: 0.9rem;">Simulate a real coding interview with an AI engineering manager.</p>
+                </div>
+            </div>
+            <div id="interview-setup" style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; background: rgba(15,23,42,0.4); padding: 1rem; border-radius: 12px; border: 1px solid var(--glass-border);">
+                <input type="text" id="interview-topic" placeholder="Topic (e.g., Dynamic Programming)" style="margin: 0; flex: 1;">
+                <select id="interview-difficulty" style="margin: 0; padding: 0.8rem; background: var(--bg-dark); color: white; border: 1px solid var(--glass-border); border-radius: 8px;">
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                </select>
+                <button class="primary-btn" style="margin:0; white-space: nowrap;" onclick="startInterview()">▶ Start Interview</button>
+            </div>
+            <div id="interview-workspace" style="display: none; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <!-- Chat Window -->
+                <div class="panel" style="display: flex; flex-direction: column; height: 60vh;">
+                    <div id="interview-chat-log" style="flex: 1; overflow-y: auto; padding: 1rem; border: 1px solid var(--glass-border); border-radius: 8px; margin-bottom: 1rem; background: rgba(0,0,0,0.2); font-size: 0.95rem;">
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="interview-msg" placeholder="Type your response or code..." style="flex: 1; margin: 0;">
+                        <button class="primary-btn" onclick="sendInterviewMsg()">Send</button>
+                    </div>
+                    <button class="secondary-btn" style="margin-top: 1rem;" onclick="finishInterview()">Submit & Evaluate</button>
+                </div>
+                
+                <!-- Evaluation Result -->
+                <div class="panel ai-admin-workspace" id="interview-eval-box" style="display: none;">
+                    <h3>Interview Report</h3>
+                    <div id="interview-eval-content" style="margin-top: 1rem; font-size: 0.95rem; overflow-y: auto; max-height: 50vh; color: #cbd5e1;">
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- AI Tutor Modal Drawer -->
@@ -386,7 +439,7 @@ int main() {
         </div>
     </div>
 
-    <script src="/static/script.js?v=12"></script>
+    
 
     <!-- AI Dedicated Code Viewer Popup Modal -->
     <div id="ai-code-modal" class="modal-backdrop hidden" style="justify-content: center; align-items: center; z-index: 2500;">
@@ -438,5 +491,20 @@ int main() {
         </div>
     </div>
 
+
+    <!-- AI Code Review Modal -->
+    <div id="ai-review-modal" class="modal-backdrop hidden" style="justify-content: center; align-items: center; z-index: 3000;">
+        <div class="modal-card" style="width: 800px; max-width: 95vw; max-height: 85vh; display: flex; flex-direction: column; background: #0f172a; border: 1px solid rgba(16, 185, 129, 0.5); border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.9); overflow: hidden;">
+            <div style="background: rgba(30, 41, 59, 0.95); padding: 1.2rem 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <h2 style="margin:0;"><span style="color:var(--primary);">AI</span> Code Review & MNC Standards</h2>
+                <button class="icon-btn" onclick="closeAIReviewModal()">✖</button>
+            </div>
+            <div id="ai-review-content" style="flex: 1; padding: 1.5rem; overflow-y: auto; font-size: 0.95rem; color: #cbd5e1;">
+                <div class="loading-spinner"></div> Analyzing Code...
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js?v=14"></script>
 </body>
 </html>

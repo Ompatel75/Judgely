@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.database import engine, Base
-from app.api.endpoints import users, problems, submissions, ai
+from app.api.endpoints import users, problems, submissions, ai, reviews, hints, analytics, interview
 import os
 
 # Create database tables
@@ -24,6 +24,10 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(problems.router, prefix="/api/problems", tags=["problems"])
 app.include_router(submissions.router, prefix="/api/submissions", tags=["submissions"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
+app.include_router(hints.router, prefix="/api/hints", tags=["hints"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(interview.router, prefix="/api/interview", tags=["interview"])
 
 # Ensure static directory exists
 os.makedirs("static", exist_ok=True)

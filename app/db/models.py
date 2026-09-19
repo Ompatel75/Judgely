@@ -96,3 +96,96 @@ class AIGeneralChatLog(Base):
     role = Column(String(20), nullable=False) # "user" or "assistant"
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class CodeReview(Base):
+    __tablename__ = "code_reviews"
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("submissions.id"), unique=True, nullable=False)
+    correctness = Column(String(50), nullable=False)
+    time_complexity = Column(String(100), nullable=False)
+    space_complexity = Column(String(100), nullable=False)
+    code_quality = Column(Text, nullable=True)
+    mnc_quality_standards = Column(Text, nullable=True) # MNC-level production guidelines
+    potential_bugs = Column(Text, nullable=True)
+    edge_cases = Column(Text, nullable=True)
+    unnecessary_operations = Column(Text, nullable=True)
+    optimizations = Column(Text, nullable=True)
+    maintainability = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    submission = relationship("Submission", backref="code_review")
+
+class AIHint(Base):
+    __tablename__ = "ai_hints"
+    id = Column(Integer, primary_key=True, index=True)
+    problem_id = Column(Integer, ForeignKey("problems.id"), unique=True, nullable=False)
+    hint_1 = Column(Text, nullable=True)
+    hint_2 = Column(Text, nullable=True)
+    hint_3 = Column(Text, nullable=True)
+    approach = Column(Text, nullable=True)
+    solution = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class HintUsage(Base):
+    __tablename__ = "hint_usages"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    problem_id = Column(Integer, ForeignKey("problems.id"), nullable=False)
+    hint_level = Column(Integer, nullable=False) # 1, 2, 3, 4(approach), 5(solution)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class UserTopicStatistic(Base):
+    __tablename__ = "user_topic_statistics"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    topic = Column(String(100), nullable=False)
+    difficulty = Column(String(50), nullable=False, default="Medium")
+    accepted = Column(Integer, default=0)
+    rejected = Column(Integer, default=0)
+    total_attempts = Column(Integer, default=0)
+    avg_time_taken = Column(Float, default=0.0)
+    avg_runtime = Column(Float, default=0.0)
+    avg_memory = Column(Float, default=0.0)
+    hints_used = Column(Integer, default=0)
+
+class PracticePlan(Base):
+    __tablename__ = "practice_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    plan_data = Column(Text, nullable=False) # JSON
+    status = Column(String(50), default="ACTIVE")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class InterviewSession(Base):
+    __tablename__ = "interview_sessions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    topic = Column(String(100), nullable=True)
+    difficulty = Column(String(50), nullable=True)
+    status = Column(String(50), default="IN_PROGRESS") # IN_PROGRESS, COMPLETED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class InterviewMessage(Base):
+    __tablename__ = "interview_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("interview_sessions.id"), nullable=False)
+    role = Column(String(20), nullable=False) # "interviewer", "candidate"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class InterviewEvaluation(Base):
+    __tablename__ = "interview_evaluations"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("interview_sessions.id"), unique=True, nullable=False)
+    problem_solving_score = Column(Integer, nullable=True)
+    dsa_score = Column(Integer, nullable=True)
+    complexity_score = Column(Integer, nullable=True)
+    code_quality_score = Column(Integer, nullable=True)
+    communication_score = Column(Integer, nullable=True)
+    edge_case_score = Column(Integer, nullable=True)
+    strengths = Column(Text, nullable=True) # JSON
+    weaknesses = Column(Text, nullable=True) # JSON
+    mistakes = Column(Text, nullable=True) # JSON
+    recommended_topics = Column(Text, nullable=True) # JSON
+    improvement_plan = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
