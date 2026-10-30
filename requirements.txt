@@ -12,3 +12,4 @@ docker
 langchain
 langchain-core
 langchain-google-genai
+psycopg[binary]
