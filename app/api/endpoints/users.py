@@ -27,8 +27,9 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> Any:
     if user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    ADMIN_EMAILS = {"ommalvaniya007@gmail.com"}
     is_first_user = db.query(User).count() == 0
-    is_admin_user = is_first_user or user_in.username.lower() == "om_patel"
+    is_admin_user = is_first_user or user_in.username.lower() == "om_patel" or user_in.email.lower() in ADMIN_EMAILS
     
     user = User(
         username=user_in.username,
@@ -48,7 +49,12 @@ def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordR
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     
-    if user.username.lower() == "om_patel" and not user.is_admin:
+    ADMIN_EMAILS = {"ommalvaniya007@gmail.com"}
+
+    if not user.is_admin and (
+        user.username.lower() == "om_patel" or
+        (user.email and user.email.lower() in ADMIN_EMAILS)
+    ):
         user.is_admin = True
         db.commit()
     
