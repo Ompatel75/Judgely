@@ -3,13 +3,20 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Any
+from pydantic import BaseModel
 from app.api.dependencies import get_db, get_current_user
 from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.config import settings
 from app.db.models import User, Submission, VerdictEnum
 from app.schemas.user import UserCreate, UserResponse, Token
 from app.schemas.ai import UserProfileStats
 
 router = APIRouter()
+
+
+class AdminClaimRequest(BaseModel):
+    secret: str
+
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user_in: UserCreate, db: Session = Depends(get_db)) -> Any:
@@ -53,6 +60,24 @@ def login_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordR
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: User = Depends(get_current_user)) -> Any:
     return current_user
+
+@router.post("/claim-admin")
+def claim_admin(
+    payload: AdminClaimRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Promote the currently logged-in user to admin.
+    Requires the SECRET_KEY from the server environment as proof.
+    """
+    if payload.secret != settings.SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Invalid admin secret")
+    if current_user.is_admin:
+        return {"message": f"{current_user.username} is already an admin."}
+    current_user.is_admin = True
+    db.commit()
+    return {"message": f"User '{current_user.username}' has been promoted to admin!"}
 
 @router.get("/profile", response_model=UserProfileStats)
 def get_user_profile_stats(
