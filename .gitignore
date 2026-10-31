@@ -50,3 +50,14 @@ db.json
 *.njsproj
 *.sln
 *.swp
+
+# Frontend dependencies and builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.vite/
+
+# Tests and Benchmarks
+tests/
+benchmarks/
+.pytest_cache/
