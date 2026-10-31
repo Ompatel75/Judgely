@@ -109,6 +109,7 @@ export const api = {
         id: Date.now(),
         username,
         email,
+        is_admin: false,
         created_at: new Date().toISOString(),
       })
     )

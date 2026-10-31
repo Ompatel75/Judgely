@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Search, CheckCircle2, Circle, Clock, ArrowUpDown, Tag, Sparkles } from 'lucide-react'
+import { Search, CheckCircle2, Circle, Clock, ArrowUpDown, Tag, Sparkles, Plus } from 'lucide-react'
 import { api } from '../lib/api/client'
 import type { Difficulty, Problem } from '../lib/api/types'
 import { DifficultyBadge } from '../components/ui/Badge'
@@ -105,9 +105,19 @@ export const ProblemsPage: React.FC = () => {
         </div>
 
         {/* Quick info banner */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400">
-          <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Eager Hints pre-cached in &lt; 8ms for every problem</span>
+        <div className="flex items-center gap-3">
+          {user?.is_admin && (
+            <Link to="/problems/new">
+              <Button size="sm" className="flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" />
+                Add Problem
+              </Button>
+            </Link>
+          )}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-500/5 border border-emerald-500/20 text-xs text-emerald-400">
+            <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Eager Hints pre-cached in &lt; 8ms for every problem</span>
+          </div>
         </div>
       </div>
 

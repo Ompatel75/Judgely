@@ -4,6 +4,7 @@ export const MOCK_USER: User = {
   id: 1,
   username: 'alex_chen',
   email: 'alex@judgely.dev',
+  is_admin: false,
   created_at: '2026-01-15T00:00:00Z',
   solved_count: 84,
   ranking: 142,
