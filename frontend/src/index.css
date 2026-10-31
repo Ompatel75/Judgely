@@ -1,0 +1,146 @@
+@import 'katex/dist/katex.min.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #0B0D10;
+    color: #E6E8EB;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0B0D10;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1E232B;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2D333F;
+  }
+
+  /* Focus ring utility */
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #0B0D10, 0 0 0 3px rgba(16, 185, 129, 0.45);
+  }
+
+  /* Selection */
+  ::selection {
+    background-color: rgba(16, 185, 129, 0.25);
+    color: #FFFFFF;
+  }
+}
+
+/* Background subtle engineering grid */
+.bg-grid-pattern {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* KaTeX Dark Mode adjustments */
+.katex {
+  color: #E6E8EB !important;
+  font-size: 1.05em;
+}
+.katex-display {
+  margin: 0.75em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+}
+.katex-display > .katex {
+  color: #34D399 !important;
+}
+
+/* Problem Markdown styling */
+.problem-statement {
+  line-height: 1.65;
+  font-size: 0.9375rem;
+  color: #D1D5DB;
+}
+.problem-statement p {
+  margin-bottom: 0.85rem;
+}
+.problem-statement h1,
+.problem-statement h2,
+.problem-statement h3 {
+  color: #F3F4F6;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+}
+.problem-statement h2 {
+  font-size: 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.25rem;
+}
+.problem-statement ul, .problem-statement ol {
+  margin-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.problem-statement li {
+  margin-bottom: 0.25rem;
+}
+.problem-statement code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.84em;
+  background-color: #171B21;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  color: #E2E8F0;
+}
+.problem-statement pre {
+  background-color: #111418;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.problem-statement pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #E2E8F0;
+}
+
+/* Subtle Shimmer Skeleton */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #171B21 25%,
+    #22272F 37%,
+    #171B21 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
