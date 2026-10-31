@@ -74,3 +74,24 @@ class GeneralAIChatRequest(BaseModel):
 class GeneralAIChatResponse(BaseModel):
     reply: str
     session_id: str
+
+class AIHintEnqueueRequest(BaseModel):
+    submission_id: int
+    help_level: Optional[str] = "concise_hint"
+
+class AIHintTaskEnqueuedResponse(BaseModel):
+    task_id: str
+    status: str = "pending"
+    submission_id: int
+    message: str = "AI hint generation enqueued"
+    cached: bool = False
+    estimated_wait_seconds: Optional[int] = 3
+
+class AIHintTaskStatusResponse(BaseModel):
+    task_id: str
+    status: str  # "pending", "running", "done", "failed"
+    submission_id: Optional[int] = None
+    result: Optional[AITutorHintResponse] = None
+    error_message: Optional[str] = None
+    cached: bool = False
+    estimated_wait_seconds: Optional[int] = None

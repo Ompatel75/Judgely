@@ -71,13 +71,23 @@ Return ONLY valid JSON in this format:
         input_variables=["problem_title", "problem_description"]
     )
     chain = prompt | llm
-    response = chain.invoke({
-        "problem_title": problem_title,
-        "problem_description": problem_description
-    })
-    text = extract_response_text(response.content)
-    text = text.replace("```json", "").replace("```", "").strip()
-    return json.loads(text)
+    try:
+        response = chain.invoke({
+            "problem_title": problem_title,
+            "problem_description": problem_description
+        })
+        text = extract_response_text(response.content)
+        text = text.replace("```json", "").replace("```", "").strip()
+        return json.loads(text)
+    except Exception as e:
+        print(f"Error in generate_progressive_hints: {e}")
+        return {
+            "hint_1": "Carefully trace the problem statement and observe input constraints.",
+            "hint_2": "Consider which data structure (hash map, two pointers, prefix sums) reduces redundant computations.",
+            "hint_3": "Check edge cases such as empty input, single element, or extreme values.",
+            "approach": "Break the problem into sub-problems and analyze the state transitions.",
+            "solution": "Trace the optimal algorithmic approach and implement with bounds checking."
+        }
 
 # 3. Personalized Practice Plan
 def generate_practice_plan(stats_json: str) -> str:

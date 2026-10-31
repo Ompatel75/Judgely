@@ -7,8 +7,20 @@ from typing import Dict
 
 router = APIRouter()
 
-@router.get("/{problem_id}/next")
-def get_next_hint(problem_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+_404_response = {"description": "Problem not found."}
+
+@router.get(
+    "/{problem_id}/next",
+    summary="Get next progressive hint",
+    description="Retrieves the next unrevealed hint (level 1-5) for a problem. Leverages pre-generated DB hints (<10ms) without invoking external LLMs.",
+    responses={404: _404_response}
+)
+def get_next_hint(
+    problem_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve the next progressive hint for the authenticated user."""
     problem = db.query(Problem).filter(Problem.id == problem_id).first()
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")

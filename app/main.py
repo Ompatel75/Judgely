@@ -1,16 +1,55 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.core.config import settings
-from app.db.database import engine, Base
+from app.db.database import engine, Base, SessionLocal
+from app.core.redis import get_redis_client
 from app.api.endpoints import users, problems, submissions, ai, reviews, hints, analytics, interview
+from app.services.ai import init_ai_client
 import os
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title=settings.PROJECT_NAME)
+
+@app.on_event("startup")
+def startup_event():
+    init_ai_client()
+
+@app.get("/health", tags=["system"])
+def health_check():
+    """Health and readiness check for Render, Docker, and monitoring."""
+    health_status = {
+        "status": "healthy",
+        "database": "unknown",
+        "redis": "unknown",
+        "ai_model": settings.AI_MODEL
+    }
+
+    # 1. DB check
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        db.close()
+        health_status["database"] = "ok"
+    except Exception as e:
+        health_status["database"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+
+    # 2. Redis check
+    try:
+        r = get_redis_client()
+        r.ping()
+        health_status["redis"] = "ok"
+    except Exception as e:
+        health_status["redis"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    return JSONResponse(status_code=status_code, content=health_status)
 
 app.add_middleware(
     CORSMiddleware,

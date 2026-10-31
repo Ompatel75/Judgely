@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.api.dependencies import get_db, get_current_admin_user
-from app.db.models import Problem, TestCase
+from app.db.models import Problem, TestCase, AIHint
 from app.schemas.problem import ProblemCreate, ProblemResponse, TestCaseCreate, TestCaseResponse
 from app.schemas.ai import (
     AIProblemGenerateRequest,
@@ -30,10 +30,31 @@ def create_problem(
     problem_in: ProblemCreate,
     current_user = Depends(get_current_admin_user)
 ) -> Any:
-    problem = Problem(**problem_in.model_dump())
+    prob_data = problem_in.model_dump()
+    hint_fields = {
+        "hint_1": prob_data.pop("hint_1", None),
+        "hint_2": prob_data.pop("hint_2", None),
+        "hint_3": prob_data.pop("hint_3", None),
+        "approach": prob_data.pop("approach", None),
+        "solution": prob_data.pop("solution", None)
+    }
+    problem = Problem(**prob_data)
     db.add(problem)
     db.commit()
     db.refresh(problem)
+
+    if any(hint_fields.values()):
+        hint_obj = AIHint(
+            problem_id=problem.id,
+            hint_1=hint_fields.get("hint_1") or "",
+            hint_2=hint_fields.get("hint_2") or "",
+            hint_3=hint_fields.get("hint_3") or "",
+            approach=hint_fields.get("approach") or "",
+            solution=hint_fields.get("solution") or ""
+        )
+        db.add(hint_obj)
+        db.commit()
+
     return problem
 
 @router.post("/generate-ai", response_model=AIGeneratedProblemSchema)

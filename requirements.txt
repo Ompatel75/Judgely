@@ -12,3 +12,5 @@ docker
 langchain
 langchain-core
 langchain-google-genai
+celery
+redis

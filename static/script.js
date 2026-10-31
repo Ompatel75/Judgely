@@ -438,6 +438,8 @@ function openSubmitPanel(id, title, desc) {
     // Reset verdict & AI triggers
     document.getElementById('verdict-display').classList.add('hidden');
     document.getElementById('ai-tutor-btn').classList.add('hidden');
+    const streamBtn = document.getElementById('ai-stream-btn');
+    if (streamBtn) streamBtn.classList.add('hidden');
     document.getElementById('ai-complexity-btn').classList.add('hidden');
     document.getElementById('complexity-card-container').classList.add('hidden');
     document.getElementById('submit-btn').disabled = false;
@@ -469,6 +471,8 @@ async function handleSubmitCode(e) {
     btn.disabled = true;
     vDisplay.classList.remove('hidden');
     document.getElementById('ai-tutor-btn').classList.add('hidden');
+    const sBtn = document.getElementById('ai-stream-btn');
+    if (sBtn) sBtn.classList.add('hidden');
     document.getElementById('ai-complexity-btn').classList.add('hidden');
     document.getElementById('complexity-card-container').classList.add('hidden');
     vStatus.textContent = "SUBMITTING...";
@@ -532,6 +536,8 @@ function pollVerdict(subId) {
                     else vStatus.className = 'verdict-re';
                     
                     document.getElementById('ai-tutor-btn').classList.remove('hidden');
+                    const sBtn = document.getElementById('ai-stream-btn');
+                    if (sBtn) sBtn.classList.remove('hidden');
                 }
                 
                 if (data.execution_time) {
@@ -562,9 +568,51 @@ async function openAITutorModal() {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${currentToken}` }
         });
+        if (res.status === 429) {
+            const retryAfter = res.headers.get("Retry-After") || "30";
+            const loadingText = document.getElementById('tutor-loading');
+            loadingText.innerHTML = `<p style="color:var(--warning, #f59e0b)">⏱️ AI Rate limit reached (Free-tier protection). Please retry in <span id="tutor-retry-countdown">${retryAfter}</span> seconds.</p>`;
+            let remaining = parseInt(retryAfter, 10);
+            const interval = setInterval(() => {
+                remaining--;
+                const el = document.getElementById('tutor-retry-countdown');
+                if (el) el.textContent = remaining;
+                if (remaining <= 0) clearInterval(interval);
+            }, 1000);
+            return;
+        }
         if (!res.ok) throw new Error("Failed to load AI Tutor hints");
         
-        const data = await res.json();
+        let data = await res.json();
+
+        // Handle async 202 task enqueued polling
+        if (res.status === 202 || (data && data.task_id && data.status !== 'done')) {
+            const taskId = data.task_id;
+            const loadingText = document.getElementById('tutor-loading');
+            loadingText.innerHTML = '<div class="spinner"></div><p>AI Tutor is analyzing your code...</p>';
+            
+            let pollAttempts = 0;
+            const maxPolls = 40; // 40 * 800ms = 32s timeout
+            while (pollAttempts < maxPolls) {
+                await new Promise(r => setTimeout(r, 800));
+                pollAttempts++;
+                const pollRes = await fetch(`${API_URL}/ai/hint/${taskId}`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                if (pollRes.ok) {
+                    const pollData = await pollRes.json();
+                    if (pollData.status === 'done') {
+                        data = pollData.result;
+                        break;
+                    } else if (pollData.status === 'failed') {
+                        throw new Error(pollData.error_message || "AI Tutor analysis failed.");
+                    }
+                }
+            }
+            if (!data || !data.what_went_wrong) {
+                throw new Error("AI Tutor timed out. Please try again.");
+            }
+        }
         
         document.getElementById('tutor-wrong-text').innerHTML = renderMarkdown(data.what_went_wrong);
         document.getElementById('hint-1-text').innerHTML = renderMarkdown(data.hint_1);
@@ -618,6 +666,88 @@ function unlockHint(stepNum, text) {
 
 function closeAITutorModal() {
     document.getElementById('ai-tutor-drawer').classList.add('hidden');
+}
+
+// Feature 3: Real-Time SSE Token Streaming for AI Tutor
+async function streamAITutorHints(submissionId) {
+    if (!submissionId) return;
+    const drawer = document.getElementById('ai-tutor-drawer');
+    drawer.classList.remove('hidden');
+
+    const loading = document.getElementById('tutor-loading');
+    const content = document.getElementById('tutor-content');
+    const container = document.getElementById('tutor-wrong-text');
+
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    container.innerHTML = '';
+
+    try {
+        const response = await fetch(`${API_URL}/ai/hint/stream/${submissionId}`, {
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (response.status === 429) {
+            const retryAfter = response.headers.get("Retry-After") || "30";
+            loading.innerHTML = `<p style="color:var(--warning, #f59e0b)">⏱️ AI Rate limit reached. You can stream again in <span id="stream-retry-countdown">${retryAfter}</span>s.</p>`;
+            let remaining = parseInt(retryAfter, 10);
+            const interval = setInterval(() => {
+                remaining--;
+                const el = document.getElementById('stream-retry-countdown');
+                if (el) el.textContent = remaining;
+                if (remaining <= 0) clearInterval(interval);
+            }, 1000);
+            return;
+        }
+        if (!response.ok) throw new Error("Streaming connection failed");
+
+        loading.classList.add('hidden');
+        content.classList.remove('hidden');
+
+        // Reset progressive hint blocks during real-time streaming
+        const h2Container = document.getElementById('hint-2-container');
+        if (h2Container) h2Container.className = 'hint-step hidden';
+        const h3Container = document.getElementById('hint-3-container');
+        if (h3Container) h3Container.className = 'hint-step hidden';
+        const h1Text = document.getElementById('hint-1-text');
+        if (h1Text) h1Text.innerHTML = '<span style="color: #38bdf8;">Streaming real-time analysis...</span>';
+        const edgeCase = document.getElementById('tutor-edge-case');
+        if (edgeCase) edgeCase.innerHTML = 'Included in real-time stream above';
+        const whereLook = document.getElementById('tutor-where');
+        if (whereLook) whereLook.innerHTML = 'Highlighted in stream';
+        const concept = document.getElementById('tutor-concept');
+        if (concept) concept.innerHTML = 'Real-Time Gemini Stream';
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let accumulated = "";
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n\n");
+            for (const line of lines) {
+                if (line.startsWith("data: ")) {
+                    try {
+                        const event = JSON.parse(line.substring(6));
+                        if (event.token) {
+                            accumulated += event.token;
+                            container.innerHTML = renderMarkdown(accumulated);
+                        } else if (event.done) {
+                            container.innerHTML = renderMarkdown(event.full_text);
+                        } else if (event.error) {
+                            container.innerHTML += `<p style="color:var(--error);">${event.message}</p>`;
+                        }
+                    } catch (e) {
+                        // ignore malformed partial chunks
+                    }
+                }
+            }
+        }
+        loadTutorChatHistory();
+    } catch (err) {
+        loading.innerHTML = `<p style="color:var(--error)">${err.message}</p>`;
+    }
 }
 
 async function loadTutorChatHistory() {

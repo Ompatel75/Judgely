@@ -25,7 +25,11 @@ class ProblemBase(BaseModel):
     tags: Optional[str] = ""
 
 class ProblemCreate(ProblemBase):
-    pass
+    hint_1: Optional[str] = None
+    hint_2: Optional[str] = None
+    hint_3: Optional[str] = None
+    approach: Optional[str] = None
+    solution: Optional[str] = None
 
 class ProblemResponse(ProblemBase):
     id: int
