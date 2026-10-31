@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { api } from '../lib/api/client'
 import { useEditorStore } from '../store/editorStore'
+import { useAuthStore } from '../store/authStore'
 import type { Problem, Submission } from '../lib/api/types'
 import { MarkdownRenderer } from '../components/math/MarkdownRenderer'
 import { CodeEditor } from '../components/editor/CodeEditor'
@@ -31,6 +32,7 @@ export const ProblemDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const problemId = Number(id) || 1
   const queryClient = useQueryClient()
+  const { user } = useAuthStore()
 
   const { language, getCode, activeTab, setActiveTab } = useEditorStore()
   const currentCode = getCode(problemId, language)
@@ -67,8 +69,9 @@ export const ProblemDetailPage: React.FC = () => {
 
   // Fetch submissions for this problem
   const { data: allSubmissions = [] } = useQuery<Submission[]>({
-    queryKey: ['my_submissions'],
+    queryKey: ['my_submissions', user?.id],
     queryFn: () => api.getMySubmissions(),
+    enabled: !!user,
   })
 
   const problemSubmissions = allSubmissions.filter(
@@ -104,7 +107,9 @@ export const ProblemDetailPage: React.FC = () => {
                 }
               : null
           )
-          queryClient.invalidateQueries({ queryKey: ['my_submissions'] })
+          queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })
+          queryClient.invalidateQueries({ queryKey: ['problem_status', user?.id] })
+          queryClient.invalidateQueries({ queryKey: ['user_stats', user?.id] })
           return
         }
 
@@ -138,7 +143,7 @@ export const ProblemDetailPage: React.FC = () => {
       const newSub: Submission = {
         id: res.id,
         problem_id: problemId,
-        user_id: 1,
+        user_id: user?.id || 1,
         language,
         code: currentCode,
         verdict: res.verdict,
@@ -153,7 +158,9 @@ export const ProblemDetailPage: React.FC = () => {
         pollTask(res.task_id, res.id)
       } else {
         setSubmissionStatus('done')
-        queryClient.invalidateQueries({ queryKey: ['my_submissions'] })
+        queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })
+        queryClient.invalidateQueries({ queryKey: ['problem_status', user?.id] })
+        queryClient.invalidateQueries({ queryKey: ['user_stats', user?.id] })
       }
     },
     onError: (err: any) => {

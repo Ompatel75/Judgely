@@ -3,18 +3,21 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { History, Code, X, Copy, Check } from 'lucide-react'
 import { api } from '../lib/api/client'
+import { useAuthStore } from '../store/authStore'
 import type { Submission } from '../lib/api/types'
 import { VerdictBadge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { formatRuntime, formatMemory, formatTimeAgo } from '../lib/utils'
 
 export const SubmissionsPage: React.FC = () => {
+  const { user } = useAuthStore()
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null)
   const [copiedCode, setCopiedCode] = useState(false)
 
   const { data: submissions = [], isLoading } = useQuery<Submission[]>({
-    queryKey: ['my_submissions'],
+    queryKey: ['my_submissions', user?.id],
     queryFn: () => api.getMySubmissions(),
+    enabled: !!user,
   })
 
   const handleCopyCode = (code: string) => {

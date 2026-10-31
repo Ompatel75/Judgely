@@ -15,6 +15,7 @@ import type {
 } from './types'
 
 const TOKEN_KEY = 'judgely_token'
+const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true'
 
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -28,14 +29,10 @@ export function setStoredToken(token: string | null) {
   }
 }
 
-// In-memory state for mock modifications
-let inMemorySubmissions = [...MOCK_SUBMISSIONS]
-let inMemoryProblems = [...MOCK_PROBLEMS]
-
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  fallback: () => T | Promise<T>
+  fallback?: () => T | Promise<T>
 ): Promise<T> {
   const token = getStoredToken()
   const headers: Record<string, string> = {
@@ -57,7 +54,6 @@ async function request<T>(
 
     if (res.status === 401) {
       setStoredToken(null)
-      // Dispatches custom event for reactive logout
       window.dispatchEvent(new Event('judgely:unauthorized'))
     }
 
@@ -68,90 +64,99 @@ async function request<T>(
 
     return await res.json()
   } catch (err) {
-    console.warn(`[Judgely API] Request to ${path} failed or backend unreachable. Falling back to mock data.`, err)
-    return await fallback()
+    if (USE_MOCKS && fallback) {
+      console.warn(`[Judgely API] Request to ${path} failed. Using mock fallback because VITE_USE_MOCKS=true.`, err)
+      return await fallback()
+    }
+    throw err
   }
 }
 
 export const api = {
   // Auth
   async login(username: string, _password: string): Promise<{ access_token: string; user: User }> {
-    return request(
+    const res = await request<{ access_token: string; token_type: string }>(
       ENDPOINTS.LOGIN,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ username, password: _password }).toString(),
       },
-      () => {
-        const token = `mock-jwt-token-${Date.now()}`
-        setStoredToken(token)
-        return {
-          access_token: token,
-          user: {
-            ...MOCK_USER,
-            username,
-          },
-        }
-      }
+      () => ({
+        access_token: `mock-jwt-token-${Date.now()}`,
+        token_type: 'bearer',
+      })
     )
+
+    setStoredToken(res.access_token)
+
+    // Call /api/users/me with the newly stored token to get the real User
+    const user = await api.getCurrentUser()
+    return {
+      access_token: res.access_token,
+      user,
+    }
   },
 
   async register(username: string, email: string, _password: string): Promise<{ access_token: string; user: User }> {
-    return request(
+    await request<User>(
       ENDPOINTS.REGISTER,
       {
         method: 'POST',
         body: JSON.stringify({ username, email, password: _password }),
       },
-      () => {
-        const token = `mock-jwt-token-${Date.now()}`
-        setStoredToken(token)
-        return {
-          access_token: token,
-          user: {
-            id: Date.now(),
-            username,
-            email,
-            created_at: new Date().toISOString(),
-            solved_count: 0,
-            ranking: 999,
-            streak_days: 1,
-          },
-        }
-      }
+      () => ({
+        id: Date.now(),
+        username,
+        email,
+        created_at: new Date().toISOString(),
+      })
     )
+
+    // Log in with the newly registered credentials
+    return api.login(username, _password)
   },
 
   async getCurrentUser(): Promise<User> {
-    return request(
+    return request<User>(
       ENDPOINTS.ME,
       { method: 'GET' },
-      () => MOCK_USER
+      () => ({
+        ...MOCK_USER,
+        id: 1,
+        username: 'guest_user',
+        email: 'guest@judgely.dev',
+      })
     )
   },
 
   // Problems
   async getProblems(): Promise<Problem[]> {
-    return request(
+    return request<Problem[]>(
       ENDPOINTS.PROBLEMS,
       { method: 'GET' },
-      () => inMemoryProblems
+      () => MOCK_PROBLEMS
     )
   },
 
   async getProblem(id: number | string): Promise<Problem> {
-    const numId = Number(id)
-    return request(
+    return request<Problem>(
       ENDPOINTS.PROBLEM_DETAIL(id),
       { method: 'GET' },
       () => {
-        const found = inMemoryProblems.find((p) => p.id === numId)
-        if (!found) {
-          throw new Error(`Problem with ID ${id} not found`)
-        }
+        const found = MOCK_PROBLEMS.find((p) => p.id === Number(id))
+        if (!found) throw new Error(`Problem with ID ${id} not found`)
         return found
       }
+    )
+  },
+
+  // Problem Status for Authenticated User
+  async getProblemStatus(): Promise<Record<number, string>> {
+    return request<Record<number, string>>(
+      ENDPOINTS.SUBMISSIONS_STATUS,
+      { method: 'GET' },
+      () => ({})
     )
   },
 
@@ -161,65 +166,103 @@ export const api = {
     language: SupportedLanguage
     code: string
   }): Promise<{ id: number; task_id?: string; verdict: Verdict }> {
-    return request(
+    const res = await request<any>(
       ENDPOINTS.SUBMIT,
       {
         method: 'POST',
         body: JSON.stringify(payload),
       },
-      async () => {
-        // Mock asynchronous judging simulation
-        const subId = Math.floor(1000 + Math.random() * 9000)
-        const taskId = `task-${subId}-${Date.now()}`
-        const prob = inMemoryProblems.find((p) => p.id === payload.problem_id)
-
-        const newSub: Submission = {
-          id: subId,
-          problem_id: payload.problem_id,
-          problem_title: prob?.title || 'Problem',
-          user_id: 1,
-          username: 'alex_chen',
-          language: payload.language,
-          code: payload.code,
-          verdict: 'Pending',
-          task_id: taskId,
-          created_at: new Date().toISOString(),
-          runtime: undefined,
-          memory: undefined,
-          test_cases_passed: 0,
-          total_test_cases: prob?.test_cases.length || 5,
-        }
-
-        inMemorySubmissions.unshift(newSub)
-
-        return {
-          id: subId,
-          task_id: taskId,
-          verdict: 'Pending',
-        }
-      }
+      () => ({
+        id: Math.floor(1000 + Math.random() * 9000),
+        task_id: `task-${Date.now()}`,
+        verdict: 'PENDING',
+      })
     )
+
+    return {
+      id: res.id,
+      task_id: res.task_id,
+      verdict: res.verdict === 'AC' ? 'Accepted'
+        : res.verdict === 'WA' ? 'Wrong Answer'
+        : res.verdict === 'TLE' ? 'Time Limit Exceeded'
+        : res.verdict === 'MLE' ? 'Memory Limit Exceeded'
+        : res.verdict === 'RE' ? 'Runtime Error'
+        : res.verdict === 'CE' ? 'Compilation Error'
+        : res.verdict === 'RUNNING' ? 'Running'
+        : 'Pending',
+    }
   },
 
   async getMySubmissions(): Promise<Submission[]> {
-    return request(
+    const items = await request<any[]>(
       ENDPOINTS.SUBMISSIONS_MY,
       { method: 'GET' },
-      () => inMemorySubmissions
+      () => []
     )
+
+    return items.map((sub) => {
+      const v = sub.verdict
+      const verdictStr = typeof v === 'object' && v?.name ? v.name : String(v || 'PENDING')
+      return {
+        id: sub.id,
+        problem_id: sub.problem_id,
+        problem_title: sub.problem?.title || `Problem #${sub.problem_id}`,
+        user_id: sub.user_id,
+        username: sub.user?.username,
+        language: sub.language || 'cpp',
+        code: sub.code || '',
+        verdict: verdictStr === 'AC' ? 'Accepted'
+          : verdictStr === 'WA' ? 'Wrong Answer'
+          : verdictStr === 'TLE' ? 'Time Limit Exceeded'
+          : verdictStr === 'MLE' ? 'Memory Limit Exceeded'
+          : verdictStr === 'RE' ? 'Runtime Error'
+          : verdictStr === 'CE' ? 'Compilation Error'
+          : verdictStr === 'RUNNING' ? 'Running'
+          : 'Pending',
+        runtime: sub.execution_time != null ? Math.round(sub.execution_time * 1000) : undefined,
+        memory: sub.memory_used != null ? Math.round(sub.memory_used * 1024) : undefined,
+        created_at: sub.created_at,
+        error_message: sub.error_message,
+        task_id: sub.task_id,
+      }
+    })
   },
 
   async getSubmission(id: number | string): Promise<Submission> {
-    const numId = Number(id)
-    return request(
+    const sub = await request<any>(
       ENDPOINTS.SUBMISSION_DETAIL(id),
       { method: 'GET' },
       () => {
-        const found = inMemorySubmissions.find((s) => s.id === numId)
+        const found = MOCK_SUBMISSIONS.find((s) => s.id === Number(id))
         if (!found) throw new Error(`Submission #${id} not found`)
         return found
       }
     )
+
+    const v = sub.verdict
+    const verdictStr = typeof v === 'object' && v?.name ? v.name : String(v || 'PENDING')
+    return {
+      id: sub.id,
+      problem_id: sub.problem_id,
+      problem_title: sub.problem?.title || `Problem #${sub.problem_id}`,
+      user_id: sub.user_id,
+      username: sub.user?.username,
+      language: sub.language || 'cpp',
+      code: sub.code || '',
+      verdict: verdictStr === 'AC' ? 'Accepted'
+        : verdictStr === 'WA' ? 'Wrong Answer'
+        : verdictStr === 'TLE' ? 'Time Limit Exceeded'
+        : verdictStr === 'MLE' ? 'Memory Limit Exceeded'
+        : verdictStr === 'RE' ? 'Runtime Error'
+        : verdictStr === 'CE' ? 'Compilation Error'
+        : verdictStr === 'RUNNING' ? 'Running'
+        : 'Pending',
+      runtime: sub.execution_time != null ? Math.round(sub.execution_time * 1000) : undefined,
+      memory: sub.memory_used != null ? Math.round(sub.memory_used * 1024) : undefined,
+      created_at: sub.created_at,
+      error_message: sub.error_message,
+      task_id: sub.task_id,
+    }
   },
 
   async pollSubmissionTask(taskId: string): Promise<{
@@ -234,50 +277,7 @@ export const api = {
     return request(
       ENDPOINTS.SUBMISSION_TASK_STATUS(taskId),
       { method: 'GET' },
-      () => {
-        // Check submission in memory
-        const sub = inMemorySubmissions.find((s) => s.task_id === taskId)
-        if (!sub) return { status: 'done', verdict: 'Accepted', runtime: 18, memory: 15400 }
-
-        // Transition mock states if still pending
-        if (sub.verdict === 'Pending') {
-          sub.verdict = 'Running'
-          return { status: 'running' }
-        } else if (sub.verdict === 'Running') {
-          // If code contains common errors or is very short
-          if (sub.code.length < 50) {
-            sub.verdict = 'Wrong Answer'
-            sub.error_message = 'Failed on test case 2: output mismatch'
-            sub.test_cases_passed = 1
-            sub.total_test_cases = 5
-          } else {
-            sub.verdict = 'Accepted'
-            sub.runtime = Math.floor(10 + Math.random() * 35)
-            sub.memory = Math.floor(14000 + Math.random() * 4000)
-            sub.test_cases_passed = sub.total_test_cases || 10
-            sub.total_test_cases = sub.total_test_cases || 10
-          }
-          return {
-            status: 'done',
-            verdict: sub.verdict,
-            runtime: sub.runtime,
-            memory: sub.memory,
-            passed_cases: sub.test_cases_passed,
-            total_cases: sub.total_test_cases,
-            error_message: sub.error_message,
-          }
-        }
-
-        return {
-          status: 'done',
-          verdict: sub.verdict,
-          runtime: sub.runtime,
-          memory: sub.memory,
-          passed_cases: sub.test_cases_passed,
-          total_cases: sub.total_test_cases,
-          error_message: sub.error_message,
-        }
-      }
+      () => ({ status: 'done', verdict: 'Accepted', runtime: 18, memory: 15400 })
     )
   },
 
@@ -286,12 +286,10 @@ export const api = {
     return request(
       ENDPOINTS.AI_NEXT_HINT(problemId),
       { method: 'GET' },
-      () => {
-        return {
-          help_level: 'gentle',
-          hint: 'Think about the structure of the input: since the array is already sorted, can you maintain two pointers at both ends and move them inward depending on whether their sum is too small or too large?',
-        }
-      }
+      () => ({
+        help_level: 'gentle',
+        hint: 'Think about the structure of the input: since the array is already sorted, can you maintain two pointers at both ends and move them inward depending on whether their sum is too small or too large?',
+      })
     )
   },
 
@@ -307,46 +305,77 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       },
-      () => {
-        let answer = ''
-        if (payload.prompt_type === 'approach') {
-          answer = `### Recommended Algorithmic Approach
-
-1. **Two Pointer Technique**:
-   - Initialize \`left = 0\` and \`right = n - 1\`.
-   - Compute \`current_sum = a[left] + a[right]\`.
-   - If \`current_sum == target\`, return the 1-based indices $[left + 1, right + 1]$.
-   - If \`current_sum < target\`, we need a larger sum, so increment \`left++\`.
-   - If \`current_sum > target\`, we need a smaller sum, so decrement \`right--\`.
-
-**Complexity Analysis**:
-- **Time Complexity**: $\\mathcal{O}(N)$ since each pointer moves at most $N$ times.
-- **Space Complexity**: $\\mathcal{O}(1)$ auxiliary space, satisfying constraints.`
-        } else if (payload.prompt_type === 'bug_detect') {
-          answer = `### Diagnostic Analysis 🔍
-
-Looking at your submission:
-1. **64-bit Integer Overflow**: If summing two large values like $10^9 + 10^9$, casting to \`long long\` or \`int64_t\` is required before addition.
-2. **1-Indexed Output**: Ensure your returned indices are adjusted by $+1$ according to the problem constraints.`
-        } else {
-          answer = `**Nudge Hint**: Notice that sorting eliminates the need for a hash map with $\\mathcal{O}(N)$ space! Start by checking the sum of the extreme ends: $a_1 + a_n$. If this sum is less than $T$, can $a_1$ ever pair with any other element in the array to reach $T$?`
-        }
-
-        return {
-          hint: answer,
-          status: 'done',
-        }
-      }
+      () => ({
+        hint: 'Analyze the extreme values and how two pointers can narrow down the search space.',
+        status: 'done',
+      })
     )
   },
 
   // User Stats & Profile
   async getUserStats(): Promise<UserStats> {
-    return request(
-      '/api/users/stats',
-      { method: 'GET' },
-      () => MOCK_USER_STATS
-    )
+    const [profile, submissions, problems] = await Promise.all([
+      request<any>(ENDPOINTS.USER_PROFILE, { method: 'GET' }, () => null).catch(() => null),
+      api.getMySubmissions().catch(() => []),
+      api.getProblems().catch(() => []),
+    ])
+
+    const totalSubmissions = profile?.total_submissions ?? submissions.length
+    const solvedProblemIds = new Set<number>()
+    const submissionsByDate: Record<string, number> = {}
+
+    submissions.forEach((s) => {
+      if (s.verdict === 'Accepted') {
+        solvedProblemIds.add(s.problem_id)
+      }
+      if (s.created_at) {
+        const d = s.created_at.split('T')[0]
+        submissionsByDate[d] = (submissionsByDate[d] || 0) + 1
+      }
+    })
+
+    const totalSolved = profile?.solved_count ?? solvedProblemIds.size
+    const acceptanceRate = totalSubmissions > 0
+      ? Math.round((totalSolved / totalSubmissions) * 1000) / 10
+      : 0
+
+    const probMap = new Map<number, Problem>()
+    problems.forEach((p) => probMap.set(p.id, p))
+
+    let easySolved = 0
+    let mediumSolved = 0
+    let hardSolved = 0
+    let totalEasy = 0
+    let totalMedium = 0
+    let totalHard = 0
+
+    problems.forEach((p) => {
+      if (p.difficulty === 'Easy') totalEasy++
+      else if (p.difficulty === 'Medium') totalMedium++
+      else if (p.difficulty === 'Hard') totalHard++
+    })
+
+    solvedProblemIds.forEach((pid) => {
+      const p = probMap.get(pid)
+      if (p?.difficulty === 'Easy') easySolved++
+      else if (p?.difficulty === 'Medium') mediumSolved++
+      else if (p?.difficulty === 'Hard') hardSolved++
+    })
+
+    return {
+      total_solved: totalSolved,
+      total_submissions: totalSubmissions,
+      acceptance_rate: acceptanceRate,
+      easy_solved: easySolved,
+      medium_solved: mediumSolved,
+      hard_solved: hardSolved,
+      total_easy: totalEasy || 1,
+      total_medium: totalMedium || 1,
+      total_hard: totalHard || 1,
+      current_streak: totalSubmissions > 0 ? 1 : 0,
+      longest_streak: totalSubmissions > 0 ? 1 : 0,
+      submissions_by_date: submissionsByDate,
+    }
   },
 
   async getHealth(): Promise<{ status: string; database?: string; redis?: string; ai_model?: string }> {
@@ -357,4 +386,3 @@ Looking at your submission:
     )
   },
 }
-

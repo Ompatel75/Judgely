@@ -38,8 +38,17 @@ def submit_code(
     return submission
 
 @router.get("/", response_model=List[SubmissionResponse])
-def read_submissions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> Any:
-    submissions = db.query(Submission).offset(skip).limit(limit).all()
+def read_submissions(
+    skip: int = 0,
+    limit: int = 100,
+    all_users: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
+    query = db.query(Submission)
+    if not (current_user.is_admin and all_users):
+        query = query.filter(Submission.user_id == current_user.id)
+    submissions = query.order_by(Submission.id.desc()).offset(skip).limit(limit).all()
     return submissions
 
 @router.get("/me/status")
@@ -64,8 +73,14 @@ def get_my_submission_status(
     return status_map
 
 @router.get("/{submission_id}", response_model=SubmissionResponse)
-def read_submission(submission_id: int, db: Session = Depends(get_db)) -> Any:
+def read_submission(
+    submission_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Any:
     submission = db.query(Submission).filter(Submission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
+    if submission.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this submission")
     return submission

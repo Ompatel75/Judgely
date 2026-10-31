@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { api, getStoredToken, setStoredToken } from '../lib/api/client'
-import { MOCK_USER } from '../lib/api/mockData'
+import { queryClient } from '../lib/queryClient'
 import type { User } from '../lib/api/types'
 
 interface AuthState {
@@ -15,14 +15,16 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  token: getStoredToken() || 'mock-init-token',
-  user: MOCK_USER,
-  isAuthenticated: true, // Default to authenticated in mock mode for instant exploration
-  isLoading: false,
+  token: getStoredToken(),
+  user: null,
+  isAuthenticated: false,
+  isLoading: !!getStoredToken(),
 
   login: async (username, password) => {
     set({ isLoading: true })
     try {
+      // Clear any prior cached data from other users
+      queryClient.clear()
       const res = await api.login(username, password)
       set({
         token: res.access_token,
@@ -39,6 +41,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (username, email, password) => {
     set({ isLoading: true })
     try {
+      // Clear any prior cached data
+      queryClient.clear()
       const res = await api.register(username, email, password)
       set({
         token: res.access_token,
@@ -54,30 +58,39 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     setStoredToken(null)
+    queryClient.clear()
     set({
       token: null,
       user: null,
       isAuthenticated: false,
+      isLoading: false,
     })
   },
 
   initAuth: async () => {
     const token = getStoredToken()
-    if (!token) return
+    if (!token) {
+      set({ token: null, user: null, isAuthenticated: false, isLoading: false })
+      return
+    }
 
     set({ isLoading: true })
     try {
       const user = await api.getCurrentUser()
       set({
+        token,
         user,
         isAuthenticated: true,
         isLoading: false,
       })
     } catch {
-      // Fallback: keep mock user
+      // On failure, clear invalid token and log out - never fall back to mock user
+      setStoredToken(null)
+      queryClient.clear()
       set({
-        user: MOCK_USER,
-        isAuthenticated: true,
+        token: null,
+        user: null,
+        isAuthenticated: false,
         isLoading: false,
       })
     }
@@ -90,4 +103,3 @@ if (typeof window !== 'undefined') {
     useAuthStore.getState().logout()
   })
 }
-

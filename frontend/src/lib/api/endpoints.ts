@@ -11,6 +11,7 @@ export const ENDPOINTS = {
   LOGIN: '/api/users/login',
   REGISTER: '/api/users/register',
   ME: '/api/users/me',
+  USER_PROFILE: '/api/users/profile',
 
   // Problems
   PROBLEMS: '/api/problems/',
@@ -19,7 +20,8 @@ export const ENDPOINTS = {
 
   // Submissions & Judging
   SUBMIT: '/api/submissions/',
-  SUBMISSIONS_MY: '/api/submissions/my',
+  SUBMISSIONS_MY: '/api/submissions/',
+  SUBMISSIONS_STATUS: '/api/submissions/me/status',
   SUBMISSION_DETAIL: (id: number | string) => `/api/submissions/${id}`,
   SUBMISSION_TASK_STATUS: (taskId: string) => `/api/submissions/task/${taskId}`,
 

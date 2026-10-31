@@ -8,9 +8,11 @@ import { DifficultyBadge } from '../components/ui/Badge'
 import { ProblemRowSkeleton } from '../components/ui/Skeleton'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
+import { useAuthStore } from '../store/authStore'
 import { cn } from '../lib/utils'
 
 export const ProblemsPage: React.FC = () => {
+  const { user } = useAuthStore()
   const [search, setSearch] = useState('')
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
   const [selectedTag, setSelectedTag] = useState<string>('all')
@@ -22,6 +24,12 @@ export const ProblemsPage: React.FC = () => {
   const { data: problems = [], isLoading } = useQuery<Problem[]>({
     queryKey: ['problems'],
     queryFn: () => api.getProblems(),
+  })
+
+  const { data: statusMap = {} } = useQuery<Record<number, string>>({
+    queryKey: ['problem_status', user?.id],
+    queryFn: () => api.getProblemStatus(),
+    enabled: !!user,
   })
 
   // Extract unique tags across problems
@@ -222,13 +230,18 @@ export const ProblemsPage: React.FC = () => {
                     >
                       {/* Solved Status Indicator */}
                       <td className="py-3 px-4 text-center">
-                        {prob.status === 'solved' ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 mx-auto" />
-                        ) : prob.status === 'attempted' ? (
-                          <Clock className="w-4 h-4 text-amber-400 mx-auto" />
-                        ) : (
-                          <Circle className="w-3.5 h-3.5 text-white/10 mx-auto group-hover:text-white/20 transition-colors" />
-                        )}
+                        {(() => {
+                          const v = statusMap[prob.id]
+                          const isSolved = v === 'AC' || (!user && prob.status === 'solved')
+                          const isAttempted = (v && v !== 'AC') || (!user && prob.status === 'attempted')
+                          if (isSolved) {
+                            return <CheckCircle2 className="w-4 h-4 text-emerald-400 mx-auto" />
+                          }
+                          if (isAttempted) {
+                            return <Clock className="w-4 h-4 text-amber-400 mx-auto" />
+                          }
+                          return <Circle className="w-3.5 h-3.5 text-white/10 mx-auto group-hover:text-white/20 transition-colors" />
+                        })()}
                       </td>
 
                       {/* Title & ID */}
