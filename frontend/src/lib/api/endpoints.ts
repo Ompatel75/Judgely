@@ -1,6 +1,10 @@
 // Centralized API endpoint paths
+// In production on Vercel, leaving it empty uses the vercel.json reverse proxy (avoids CORS).
+// If VITE_API_URL is explicitly set, it takes precedence.
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://judgely-1.onrender.com'
+  import.meta.env.VITE_API_URL !== undefined
+    ? import.meta.env.VITE_API_URL
+    : (import.meta.env.PROD ? '' : 'https://judgely-1.onrender.com')
 
 export const ENDPOINTS = {
   // Auth
@@ -31,4 +35,3 @@ export const ENDPOINTS = {
   // System
   HEALTH: '/health',
 } as const
-

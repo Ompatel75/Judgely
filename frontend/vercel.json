@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://judgely-1.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://judgely-1.onrender.com/health"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
