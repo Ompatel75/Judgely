@@ -6,6 +6,7 @@ import {
   MOCK_USER_STATS,
 } from './mockData'
 import type {
+  Difficulty,
   Problem,
   Submission,
   SupportedLanguage,
@@ -148,23 +149,63 @@ export const api = {
 
   // Problems
   async getProblems(): Promise<Problem[]> {
-    return request<Problem[]>(
+    const rawList = await request<any[]>(
       ENDPOINTS.PROBLEMS,
       { method: 'GET' },
       () => MOCK_PROBLEMS
     )
+    return rawList.map((p) => ({
+      id: p.id,
+      title: p.title,
+      slug: `problem-${p.id}`,
+      description: p.description,
+      difficulty: (p.difficulty || 'Medium') as Difficulty,
+      time_limit: p.time_limit || 1.0,
+      memory_limit: p.memory_limit || 256,
+      acceptance_rate: p.acceptance_rate || 50.0,
+      total_submissions: p.total_submissions || 0,
+      total_accepted: p.total_accepted || 0,
+      tags: typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : (p.tags || []),
+      test_cases: (p.test_cases || []).map((tc: any) => ({
+        id: tc.id,
+        input: tc.input_data ?? tc.input ?? '',
+        output: tc.expected_output ?? tc.output ?? '',
+        is_sample: !tc.is_hidden,
+        explanation: tc.explanation,
+      })),
+    }))
   },
 
   async getProblem(id: number | string): Promise<Problem> {
-    return request<Problem>(
+    const p = await request<any>(
       ENDPOINTS.PROBLEM_DETAIL(id),
       { method: 'GET' },
       () => {
-        const found = MOCK_PROBLEMS.find((p) => p.id === Number(id))
+        const found = MOCK_PROBLEMS.find((prob) => prob.id === Number(id))
         if (!found) throw new Error(`Problem with ID ${id} not found`)
         return found
       }
     )
+    return {
+      id: p.id,
+      title: p.title,
+      slug: `problem-${p.id}`,
+      description: p.description,
+      difficulty: (p.difficulty || 'Medium') as Difficulty,
+      time_limit: p.time_limit || 1.0,
+      memory_limit: p.memory_limit || 256,
+      acceptance_rate: p.acceptance_rate || 50.0,
+      total_submissions: p.total_submissions || 0,
+      total_accepted: p.total_accepted || 0,
+      tags: typeof p.tags === 'string' ? p.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : (p.tags || []),
+      test_cases: (p.test_cases || []).map((tc: any) => ({
+        id: tc.id,
+        input: tc.input_data ?? tc.input ?? '',
+        output: tc.expected_output ?? tc.output ?? '',
+        is_sample: !tc.is_hidden,
+        explanation: tc.explanation,
+      })),
+    }
   },
 
   // Problem Status for Authenticated User
@@ -314,18 +355,33 @@ export const api = {
     problem_id?: number
     code?: string
     prompt_type?: 'hint' | 'approach' | 'bug_detect'
+    message?: string
   }): Promise<{ task_id?: string; hint?: string; status?: string }> {
+    // If the request includes a custom message or code, route to /api/ai/general-chat
+    const promptText = payload.message || (
+      payload.prompt_type === 'approach' ? 'Can you guide me on the high-level algorithmic approach for this problem?' :
+      payload.prompt_type === 'bug_detect' ? 'Can you look at my code and tell me what edge cases or logic bugs I might have?' :
+      'Give me a gentle nudge or hint to point me in the right direction.'
+    )
+
     return request(
-      ENDPOINTS.AI_HINT,
+      ENDPOINTS.AI_GENERAL_CHAT,
       {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          message: promptText,
+          problem_id: payload.problem_id,
+          current_code: payload.code || '',
+        }),
       },
       () => ({
-        hint: 'Analyze the extreme values and how two pointers can narrow down the search space.',
-        status: 'done',
+        reply: 'Analyze the constraints and structure of the input to determine the optimal data structure.',
+        session_id: 'default',
       })
-    )
+    ).then((res: any) => ({
+      hint: res.reply || res.hint,
+      status: 'done',
+    }))
   },
 
   // User Stats & Profile

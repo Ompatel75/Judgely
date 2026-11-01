@@ -20,6 +20,7 @@ class TestCaseResponse(TestCaseBase):
 class ProblemBase(BaseModel):
     title: str
     description: str
+    difficulty: str = "Medium"
     time_limit: float = 1.0
     memory_limit: int = 256
     tags: Optional[str] = ""

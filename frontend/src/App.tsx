@@ -10,6 +10,7 @@ import { ProblemDetailPage } from './pages/ProblemDetailPage'
 import { SubmissionsPage } from './pages/SubmissionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { AuthPage } from './pages/AuthPage'
+import { AddProblemPage } from './pages/AddProblemPage'
 import { useAuthStore } from './store/authStore'
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -78,6 +79,14 @@ export const App: React.FC = () => {
                   }
                 />
                 <Route path="/auth" element={<AuthPage />} />
+                <Route
+                  path="/problems/new"
+                  element={
+                    <ProtectedRoute>
+                      <AddProblemPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<LandingPage />} />
               </Routes>
             </motion.div>

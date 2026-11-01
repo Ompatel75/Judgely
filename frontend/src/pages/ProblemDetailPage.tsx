@@ -78,8 +78,8 @@ export const ProblemDetailPage: React.FC = () => {
     (s) => s.problem_id === problemId
   )
 
-  // Polling helper for Celery async evaluation
-  const pollTask = async (taskId: string, submissionId: number) => {
+  // Polling helper for Celery / background async evaluation
+  const pollSubmission = async (submissionId: number, taskId?: string) => {
     let attempts = 0
     const maxAttempts = 30 // ~30 seconds max
     const interval = 1000
@@ -87,30 +87,44 @@ export const ProblemDetailPage: React.FC = () => {
     const check = async () => {
       attempts++
       try {
-        const res = await api.pollSubmissionTask(taskId)
-        if (res.status === 'running') {
-          setSubmissionStatus('running')
-        }
-
-        if (res.status === 'done') {
-          setSubmissionStatus('done')
-          setActiveSubmission((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  verdict: res.verdict || 'Accepted',
-                  runtime: res.runtime,
-                  memory: res.memory,
-                  test_cases_passed: res.passed_cases,
-                  total_test_cases: res.total_cases,
-                  error_message: res.error_message,
-                }
-              : null
-          )
-          queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })
-          queryClient.invalidateQueries({ queryKey: ['problem_status', user?.id] })
-          queryClient.invalidateQueries({ queryKey: ['user_stats', user?.id] })
-          return
+        if (taskId) {
+          const res = await api.pollSubmissionTask(taskId)
+          if (res.status === 'running') {
+            setSubmissionStatus('running')
+          }
+          if (res.status === 'done') {
+            setSubmissionStatus('done')
+            setActiveSubmission((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    verdict: res.verdict || 'Accepted',
+                    runtime: res.runtime,
+                    memory: res.memory,
+                    test_cases_passed: res.passed_cases,
+                    total_test_cases: res.total_cases,
+                    error_message: res.error_message,
+                  }
+                : null
+            )
+            queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })
+            queryClient.invalidateQueries({ queryKey: ['problem_status', user?.id] })
+            queryClient.invalidateQueries({ queryKey: ['user_stats', user?.id] })
+            return
+          }
+        } else {
+          // Poll by submission ID directly (FastAPI BackgroundTasks mode)
+          const sub = await api.getSubmission(submissionId)
+          if (sub.verdict === 'Running') {
+            setSubmissionStatus('running')
+          } else if (sub.verdict !== 'Pending') {
+            setSubmissionStatus('done')
+            setActiveSubmission(sub)
+            queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })
+            queryClient.invalidateQueries({ queryKey: ['problem_status', user?.id] })
+            queryClient.invalidateQueries({ queryKey: ['user_stats', user?.id] })
+            return
+          }
         }
 
         if (attempts < maxAttempts) {
@@ -155,7 +169,9 @@ export const ProblemDetailPage: React.FC = () => {
       setActiveSubmission(newSub)
 
       if (res.task_id) {
-        pollTask(res.task_id, res.id)
+        pollSubmission(res.id, res.task_id)
+      } else if (res.verdict === 'Pending' || res.verdict === 'Running') {
+        pollSubmission(res.id)
       } else {
         setSubmissionStatus('done')
         queryClient.invalidateQueries({ queryKey: ['my_submissions', user?.id] })

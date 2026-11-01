@@ -70,6 +70,7 @@ How can I help you tackle this problem?`,
         problem_id: problemId,
         code,
         prompt_type: promptType,
+        message: textToSend,
       })
 
       const fullContent = res.hint || 'No hint available for this problem yet.'

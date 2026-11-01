@@ -28,6 +28,7 @@ export const ENDPOINTS = {
 
   // AI Suite
   AI_HINT: '/api/ai/hint',
+  AI_GENERAL_CHAT: '/api/ai/general-chat',
   AI_HINT_TASK: (taskId: string) => `/api/ai/hint/${taskId}`,
   AI_HINT_STREAM: (submissionId: number | string) =>
     `/api/ai/hint/stream/${submissionId}`,

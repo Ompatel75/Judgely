@@ -29,6 +29,7 @@ class Problem(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=False)
+    difficulty = Column(String(20), nullable=False, default="Medium")
     time_limit = Column(Float, nullable=False, default=1.0) # in seconds
     memory_limit = Column(Integer, nullable=False, default=256) # in MB
     tags = Column(String(255), default="")
