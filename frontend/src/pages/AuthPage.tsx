@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Terminal, Lock, User, Mail, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Terminal, Lock, User, Mail, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
@@ -15,6 +15,7 @@ export const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,7 +44,25 @@ export const AuthPage: React.FC = () => {
       }
       navigate('/problems')
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please verify credentials.')
+      const msg: string = err.message || ''
+      // Network / 502 / 504 — backend cold-starting on Render
+      if (
+        msg.toLowerCase().includes('failed to fetch') ||
+        msg.includes('502') ||
+        msg.includes('504') ||
+        msg.includes('NetworkError')
+      ) {
+        setRetrying(true)
+        setError('The server is waking up (Render free tier). Retrying automatically…')
+        // The request() function already retried; this is the final failure — advise user to try again
+        setTimeout(() => {
+          setRetrying(false)
+          setError('Server is still starting up. Please click Sign In again in a few seconds.')
+        }, 3000)
+      } else {
+        setRetrying(false)
+        setError(msg || 'Authentication failed. Please verify credentials.')
+      }
     }
   }
 
@@ -100,7 +119,7 @@ export const AuthPage: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-2.5 rounded bg-red-500/10 border border-red-500/20 text-xs font-mono text-red-400">
+            <div className={`p-2.5 rounded border text-xs font-mono ${retrying ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
               {error}
             </div>
           )}

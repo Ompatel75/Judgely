@@ -32,7 +32,8 @@ export function setStoredToken(token: string | null) {
 async function request<T>(
   path: string,
   options: RequestInit = {},
-  fallback?: () => T | Promise<T>
+  fallback?: () => T | Promise<T>,
+  retries = 2
 ): Promise<T> {
   const token = getStoredToken()
   const headers: Record<string, string> = {
@@ -46,30 +47,44 @@ async function request<T>(
 
   const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers,
-    })
+  let lastErr: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { ...options, headers })
 
-    if (res.status === 401) {
-      setStoredToken(null)
-      window.dispatchEvent(new Event('judgely:unauthorized'))
-    }
+      if (res.status === 401) {
+        setStoredToken(null)
+        window.dispatchEvent(new Event('judgely:unauthorized'))
+      }
 
-    if (!res.ok) {
-      const errorBody = await res.json().catch(() => ({}))
-      throw new Error(errorBody.detail || errorBody.message || `Request failed with status ${res.status}`)
-    }
+      if (!res.ok) {
+        // 5xx are transient (Render cold-start 502/504); retry them
+        if (res.status >= 500 && attempt < retries) {
+          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+          continue
+        }
+        const errorBody = await res.json().catch(() => ({}))
+        throw new Error(errorBody.detail || errorBody.message || `Request failed with status ${res.status}`)
+      }
 
-    return await res.json()
-  } catch (err) {
-    if (USE_MOCKS && fallback) {
-      console.warn(`[Judgely API] Request to ${path} failed. Using mock fallback because VITE_USE_MOCKS=true.`, err)
-      return await fallback()
+      return await res.json()
+    } catch (err) {
+      lastErr = err
+      // TypeError = network failure (offline / CORS on cold-start); retry
+      if (err instanceof TypeError && attempt < retries) {
+        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+        continue
+      }
+      // Known API error (non-5xx) — stop immediately
+      if (!(err instanceof TypeError)) throw err
     }
-    throw err
   }
+
+  if (USE_MOCKS && fallback) {
+    console.warn(`[Judgely API] Request to ${path} failed after ${retries + 1} attempts. Using mock fallback.`, lastErr)
+    return await fallback()
+  }
+  throw lastErr
 }
 
 export const api = {
@@ -384,6 +399,39 @@ export const api = {
       ENDPOINTS.HEALTH,
       { method: 'GET' },
       () => ({ status: 'healthy', database: 'ok', redis: 'ok', ai_model: 'gemini-3.8-flash' })
+    )
+  },
+
+  // Admin: Create problem
+  async createProblem(payload: {
+    title: string
+    description: string
+    difficulty: string
+    time_limit: number
+    memory_limit: number
+    tags: string
+  }): Promise<{ id: number; title: string }> {
+    return request(
+      ENDPOINTS.PROBLEMS,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    )
+  },
+
+  // Admin: Add test case to a problem
+  async addTestCase(problemId: number, testCase: {
+    input_data: string
+    expected_output: string
+    is_hidden: boolean
+  }): Promise<{ id: number }> {
+    return request(
+      ENDPOINTS.PROBLEM_TESTCASES(problemId),
+      {
+        method: 'POST',
+        body: JSON.stringify(testCase),
+      }
     )
   },
 }

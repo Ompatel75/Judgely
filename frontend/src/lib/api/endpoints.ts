@@ -16,6 +16,7 @@ export const ENDPOINTS = {
   // Problems
   PROBLEMS: '/api/problems/',
   PROBLEM_DETAIL: (id: number | string) => `/api/problems/${id}`,
+  PROBLEM_TESTCASES: (id: number | string) => `/api/problems/${id}/testcases`,
   GENERATE_AI_PROBLEM: '/api/problems/generate-ai',
 
   // Submissions & Judging
