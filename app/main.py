@@ -51,9 +51,20 @@ def health_check():
     status_code = 200 if health_status["status"] == "healthy" else 503
     return JSONResponse(status_code=status_code, content=health_status)
 
+# Configure CORS explicitly with Vercel origins
+# Never combine allow_origins=["*"] with allow_credentials=True
+configured_origins = [orig.strip() for orig in settings.CORS_ORIGINS.split(",") if orig.strip()]
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+allowed_origins = list(set(default_origins + configured_origins))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins if allowed_origins else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app" if not configured_origins else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
