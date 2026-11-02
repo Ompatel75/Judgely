@@ -13,6 +13,18 @@ import os
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+def auto_migrate_schema():
+    """Ensure any newly added columns exist in existing PostgreSQL/SQLite databases."""
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE problems ADD COLUMN difficulty VARCHAR(20) DEFAULT 'Medium'"))
+            conn.commit()
+        except Exception:
+            # Column already exists or table not ready yet
+            pass
+
+auto_migrate_schema()
+
 app = FastAPI(title=settings.PROJECT_NAME)
 
 @app.on_event("startup")
