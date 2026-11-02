@@ -70,13 +70,15 @@ default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
+    "https://judgely.vercel.app",
+    "https://judgely-two.vercel.app",
 ]
 allowed_origins = list(set(default_origins + configured_origins))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if allowed_origins else ["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app" if not configured_origins else None,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

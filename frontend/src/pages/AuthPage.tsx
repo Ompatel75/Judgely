@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Terminal, Lock, User, Mail, ArrowRight, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { Terminal, Lock, User, Mail, ArrowRight, ShieldCheck } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import { api, ApiError } from '../lib/api/client'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -16,6 +17,13 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [retrying, setRetrying] = useState(false)
+
+  // Pre-warm the Render backend on page load to eliminate cold-start delays
+  useEffect(() => {
+    api.getHealth().catch(() => {
+      // Ignore background pre-warm errors
+    })
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,24 +52,27 @@ export const AuthPage: React.FC = () => {
       }
       navigate('/problems')
     } catch (err: any) {
-      const msg: string = err.message || ''
-      // Network / 502 / 504 — backend cold-starting on Render
-      if (
-        msg.toLowerCase().includes('failed to fetch') ||
-        msg.includes('502') ||
-        msg.includes('504') ||
-        msg.includes('NetworkError')
-      ) {
-        setRetrying(true)
-        setError('The server is waking up (Render free tier). Retrying automatically…')
-        // The request() function already retried; this is the final failure — advise user to try again
-        setTimeout(() => {
-          setRetrying(false)
-          setError('Server is still starting up. Please click Sign In again in a few seconds.')
-        }, 3000)
+      console.error('[AuthPage Error]:', err)
+
+      if (err instanceof ApiError) {
+        if (err.isTimeout) {
+          setError('Server timed out while starting up. Please click Sign In again in a few seconds.')
+        } else if (err.isNetworkError) {
+          setError('Unable to reach server. Please check your connection or CORS settings.')
+        } else if (err.status === 400 || err.status === 401) {
+          setError(err.detail || 'Incorrect username or password.')
+        } else if (err.status && err.status >= 500) {
+          setError('Server encountered an error (HTTP ' + err.status + '). Please try again.')
+        } else {
+          setError(err.detail || err.message || 'Authentication failed. Please verify credentials.')
+        }
       } else {
-        setRetrying(false)
-        setError(msg || 'Authentication failed. Please verify credentials.')
+        const msg: string = err?.message || ''
+        if (msg.toLowerCase().includes('failed to fetch')) {
+          setError('Network request failed. Ensure your internet connection is active and CORS is permitted.')
+        } else {
+          setError(msg || 'Authentication failed. Please verify credentials.')
+        }
       }
     }
   }
@@ -190,4 +201,3 @@ export const AuthPage: React.FC = () => {
     </div>
   )
 }
-

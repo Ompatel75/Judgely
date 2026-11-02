@@ -30,11 +30,28 @@ export function setStoredToken(token: string | null) {
   }
 }
 
+export class ApiError extends Error {
+  status?: number
+  isNetworkError?: boolean
+  isTimeout?: boolean
+  detail?: string
+
+  constructor(message: string, opts?: { status?: number; isNetworkError?: boolean; isTimeout?: boolean; detail?: string }) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = opts?.status
+    this.isNetworkError = opts?.isNetworkError
+    this.isTimeout = opts?.isTimeout
+    this.detail = opts?.detail
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
   fallback?: () => T | Promise<T>,
-  retries = 2
+  retries = 1,
+  timeoutMs = 45000
 ): Promise<T> {
   const token = getStoredToken()
   const headers: Record<string, string> = {
@@ -50,8 +67,16 @@ async function request<T>(
 
   let lastErr: unknown
   for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
     try {
-      const res = await fetch(url, { ...options, headers })
+      const res = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
 
       if (res.status === 401) {
         setStoredToken(null)
@@ -59,30 +84,51 @@ async function request<T>(
       }
 
       if (!res.ok) {
-        // 5xx are transient (Render cold-start 502/504); retry them
-        if (res.status >= 500 && attempt < retries) {
-          await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+        // Retry only cold-start-type transient server errors (502, 503, 504)
+        if ([502, 503, 504].includes(res.status) && attempt < retries) {
+          console.warn(`[Judgely API] HTTP ${res.status} on ${path}. Retrying after delay...`)
+          await new Promise((r) => setTimeout(r, 1500))
           continue
         }
+
         const errorBody = await res.json().catch(() => ({}))
-        throw new Error(errorBody.detail || errorBody.message || `Request failed with status ${res.status}`)
+        const errorDetail = errorBody.detail || errorBody.message
+        console.error(`[Judgely API] Error ${res.status} on ${url}:`, errorDetail || res.statusText)
+        throw new ApiError(errorDetail || `Request failed with status ${res.status}`, {
+          status: res.status,
+          detail: errorDetail,
+        })
       }
 
       return await res.json()
-    } catch (err) {
+    } catch (err: any) {
+      clearTimeout(timer)
       lastErr = err
-      // TypeError = network failure (offline / CORS on cold-start); retry
-      if (err instanceof TypeError && attempt < retries) {
-        await new Promise((r) => setTimeout(r, 800 * (attempt + 1)))
+
+      const isAbort = err?.name === 'AbortError'
+      const isTypeError = err instanceof TypeError
+
+      console.error(`[Judgely API] Request failed (${url}, attempt ${attempt + 1}/${retries + 1}):`, err)
+
+      // If aborted by timeout or transient network failure during cold start, retry once
+      if ((isAbort || isTypeError) && attempt < retries) {
+        console.warn(`[Judgely API] Transient failure on ${path}. Retrying...`)
+        await new Promise((r) => setTimeout(r, 1500))
         continue
       }
-      // Known API error (non-5xx) — stop immediately
-      if (!(err instanceof TypeError)) throw err
+
+      if (isAbort) {
+        throw new ApiError('Request timed out. The server took too long to respond.', { isTimeout: true })
+      }
+      if (isTypeError) {
+        throw new ApiError('Unable to connect to the server. Please check your connection or CORS settings.', { isNetworkError: true })
+      }
+      throw err
     }
   }
 
   if (USE_MOCKS && fallback) {
-    console.warn(`[Judgely API] Request to ${path} failed after ${retries + 1} attempts. Using mock fallback.`, lastErr)
+    console.warn(`[Judgely API] Request to ${path} failed after retries. Using mock fallback.`, lastErr)
     return await fallback()
   }
   throw lastErr
@@ -357,7 +403,6 @@ export const api = {
     prompt_type?: 'hint' | 'approach' | 'bug_detect'
     message?: string
   }): Promise<{ task_id?: string; hint?: string; status?: string }> {
-    // If the request includes a custom message or code, route to /api/ai/general-chat
     const promptText = payload.message || (
       payload.prompt_type === 'approach' ? 'Can you guide me on the high-level algorithmic approach for this problem?' :
       payload.prompt_type === 'bug_detect' ? 'Can you look at my code and tell me what edge cases or logic bugs I might have?' :
@@ -454,7 +499,9 @@ export const api = {
     return request(
       ENDPOINTS.HEALTH,
       { method: 'GET' },
-      () => ({ status: 'healthy', database: 'ok', redis: 'ok', ai_model: 'gemini-3.8-flash' })
+      () => ({ status: 'healthy', database: 'ok', redis: 'ok', ai_model: 'gemini-3.8-flash' }),
+      0, // no retries on health check ping
+      10000 // 10s timeout
     )
   },
 
