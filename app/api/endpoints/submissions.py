@@ -3,10 +3,56 @@ from sqlalchemy.orm import Session
 from typing import List, Any
 from app.api.dependencies import get_db, get_current_user
 from app.db.models import Submission, User, Problem
-from app.schemas.submission import SubmissionCreate, SubmissionResponse
-from app.services.judge import judge_submission
+from app.schemas.submission import (
+    SubmissionCreate,
+    SubmissionResponse,
+    CodeRunRequest,
+    CodeRunResponse,
+)
+from app.services.judge import judge_submission, run_code
 
 router = APIRouter()
+
+@router.post("/run", response_model=CodeRunResponse)
+def run_code_sample(
+    run_req: CodeRunRequest,
+    db: Session = Depends(get_db)
+) -> Any:
+    """Lightweight test runner to execute code against sample or custom test cases without permanent database persistence."""
+    cases = []
+    # If custom stdin input is provided
+    if run_req.custom_input is not None and run_req.custom_input != "":
+        cases.append({"input": run_req.custom_input, "expected": ""})
+    elif run_req.test_cases and len(run_req.test_cases) > 0:
+        for tc in run_req.test_cases:
+            cases.append({"input": tc.input, "expected": tc.expected or ""})
+    elif run_req.problem_id:
+        problem = db.query(Problem).filter(Problem.id == run_req.problem_id).first()
+        if not problem:
+            raise HTTPException(status_code=404, detail="Problem not found")
+        
+        sample_cases = [tc for tc in problem.test_cases if not tc.is_hidden]
+        if not sample_cases and problem.test_cases:
+            sample_cases = problem.test_cases[:3]
+
+        for tc in sample_cases:
+            cases.append({"input": tc.input_data, "expected": tc.expected_output})
+
+    if not cases:
+        cases = [{"input": "", "expected": ""}]
+
+    time_limit = 2.0
+    if run_req.problem_id:
+        p = db.query(Problem).filter(Problem.id == run_req.problem_id).first()
+        if p and p.time_limit:
+            time_limit = float(p.time_limit)
+
+    return run_code(
+        code=run_req.code,
+        language=run_req.language,
+        test_cases=cases,
+        time_limit=time_limit
+    )
 
 @router.post("/", response_model=SubmissionResponse)
 def submit_code(
@@ -20,20 +66,22 @@ def submit_code(
     if not problem:
         raise HTTPException(status_code=404, detail="Problem not found")
     
-    if submission_in.language != "cpp":
-        raise HTTPException(status_code=400, detail="Only cpp is supported currently")
+    lang = (submission_in.language or "").lower()
+    if lang not in ["cpp", "c++", "python", "python3", "py"]:
+        raise HTTPException(status_code=400, detail="Only C++ and Python are supported currently")
 
     submission = Submission(
         user_id=current_user.id,
         problem_id=submission_in.problem_id,
         code=submission_in.code,
-        language=submission_in.language
+        language="python" if lang in ["python", "python3", "py"] else "cpp"
     )
     db.add(submission)
     db.commit()
     db.refresh(submission)
     
-    background_tasks.add_task(judge_submission, submission.id, db)
+    # Run judge_submission in background without holding closed request-scoped session
+    background_tasks.add_task(judge_submission, submission.id)
     
     return submission
 

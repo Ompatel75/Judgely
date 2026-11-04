@@ -264,6 +264,29 @@ export const api = {
   },
 
   // Submissions
+  async runCode(payload: {
+    problem_id?: number
+    language: SupportedLanguage
+    code: string
+    custom_input?: string
+    test_cases?: Array<{ input: string; expected?: string }>
+  }): Promise<{
+    status: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | 'Compilation Error' | 'Time Limit Exceeded'
+    results?: Array<{
+      input: string
+      expected: string
+      actual: string
+      passed: boolean
+      runtime?: number
+    }>
+    error?: string
+  }> {
+    return await request<any>(ENDPOINTS.RUN_CODE, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
   async submitCode(payload: {
     problem_id: number
     language: SupportedLanguage

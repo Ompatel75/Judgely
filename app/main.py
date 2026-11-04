@@ -23,6 +23,13 @@ def auto_migrate_schema():
             # Column already exists or table not ready yet
             pass
 
+        try:
+            # Fix TC 7 on Problem 1 if it has the outdated expected output '4' instead of '5'
+            conn.execute(text("UPDATE test_cases SET expected_output = '5' WHERE problem_id = 1 AND input_data LIKE '7 10%' AND expected_output = '4'"))
+            conn.commit()
+        except Exception:
+            pass
+
 auto_migrate_schema()
 
 app = FastAPI(title=settings.PROJECT_NAME)
@@ -41,7 +48,7 @@ def health_check():
         "ai_model": settings.AI_MODEL
     }
 
-    # 1. DB check
+    # 1. DB check (critical for health)
     try:
         db = SessionLocal()
         db.execute(text("SELECT 1"))
@@ -51,16 +58,17 @@ def health_check():
         health_status["database"] = f"error: {str(e)}"
         health_status["status"] = "degraded"
 
-    # 2. Redis check
+    # 2. Redis check (auxiliary cache/rate-limiting)
     try:
         r = get_redis_client()
         r.ping()
         health_status["redis"] = "ok"
     except Exception as e:
         health_status["redis"] = f"error: {str(e)}"
-        health_status["status"] = "degraded"
+        # Redis is auxiliary, do not mark entire server degraded if memory fallback is active
 
-    status_code = 200 if health_status["status"] == "healthy" else 503
+    # Return 200 as long as the database is ok
+    status_code = 200 if health_status["database"] == "ok" else 503
     return JSONResponse(status_code=status_code, content=health_status)
 
 # Configure CORS explicitly with Vercel origins

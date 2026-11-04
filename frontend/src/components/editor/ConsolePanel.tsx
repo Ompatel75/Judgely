@@ -7,7 +7,7 @@ interface ConsolePanelProps {
   testCases: TestCase[]
   isRunning?: boolean
   lastRunResult?: {
-    status: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | 'Compilation Error'
+    status: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | 'Compilation Error' | 'Time Limit Exceeded'
     results?: Array<{
       input: string
       expected: string
@@ -17,17 +17,37 @@ interface ConsolePanelProps {
     }>
     error?: string
   } | null
+  customInput?: string
+  onCustomInputChange?: (val: string) => void
+  isCustomMode?: boolean
+  onToggleCustomMode?: (val: boolean) => void
 }
 
 export const ConsolePanel: React.FC<ConsolePanelProps> = ({
   testCases,
   isRunning = false,
   lastRunResult,
+  customInput: controlledCustomInput,
+  onCustomInputChange,
+  isCustomMode: controlledIsCustomMode,
+  onToggleCustomMode,
 }) => {
   const [selectedCase, setSelectedCase] = useState(0)
   const [isExpanded, setIsExpanded] = useState(true)
-  const [customInput, setCustomInput] = useState('')
-  const [isCustomMode, setIsCustomMode] = useState(false)
+  const [localCustomInput, setLocalCustomInput] = useState('')
+  const [localIsCustomMode, setLocalIsCustomMode] = useState(false)
+
+  const isCustomMode = controlledIsCustomMode ?? localIsCustomMode
+  const setIsCustomMode = (val: boolean) => {
+    if (onToggleCustomMode) onToggleCustomMode(val)
+    else setLocalIsCustomMode(val)
+  }
+
+  const customInput = controlledCustomInput ?? localCustomInput
+  const setCustomInput = (val: string) => {
+    if (onCustomInputChange) onCustomInputChange(val)
+    else setLocalCustomInput(val)
+  }
 
   const activeCase = testCases[selectedCase] || testCases[0]
   const activeRunResult = lastRunResult?.results?.[selectedCase]
@@ -115,17 +135,37 @@ export const ConsolePanel: React.FC<ConsolePanelProps> = ({
           {isRunning ? (
             <div className="flex items-center justify-center py-6 text-text-muted gap-2">
               <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
-              <span>Running against test cases...</span>
+              <span>Running code against test runner...</span>
             </div>
           ) : isCustomMode ? (
-            <div>
-              <div className="text-text-muted mb-1 text-[11px]">Custom Stdin Input:</div>
-              <textarea
-                value={customInput}
-                onChange={(e) => setCustomInput(e.target.value)}
-                placeholder="Enter standard input..."
-                className="w-full h-24 bg-[#0E1116] border border-white/10 rounded p-2 text-text-primary text-xs font-mono focus:outline-none focus:border-primary/50"
-              />
+            <div className="space-y-3">
+              <div>
+                <div className="text-text-muted mb-1 text-[11px]">Custom Stdin Input:</div>
+                <textarea
+                  value={customInput}
+                  onChange={(e) => setCustomInput(e.target.value)}
+                  placeholder="Enter custom standard input..."
+                  className="w-full h-20 bg-[#0E1116] border border-white/10 rounded p-2 text-text-primary text-xs font-mono focus:outline-none focus:border-primary/50"
+                />
+              </div>
+
+              {lastRunResult?.results && lastRunResult.results.length > 0 && (
+                <div>
+                  <div className="text-text-muted text-[11px] mb-1">Standard Output:</div>
+                  <pre className="p-2 bg-[#0E1116] border border-white/8 rounded text-[#E2E8F0] overflow-x-auto whitespace-pre-wrap">
+                    {lastRunResult.results[0].actual}
+                  </pre>
+                </div>
+              )}
+
+              {lastRunResult?.error && (
+                <div className="p-2.5 bg-red-500/10 border border-red-500/20 rounded text-red-300 text-xs">
+                  <div className="font-bold mb-1">Compilation / Runtime Error:</div>
+                  <pre className="whitespace-pre-wrap font-mono text-[11px]">
+                    {lastRunResult.error}
+                  </pre>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -149,6 +189,7 @@ export const ConsolePanel: React.FC<ConsolePanelProps> = ({
                     <span>Your Output:</span>
                     <span className={activeRunResult.passed ? 'text-emerald-400' : 'text-red-400'}>
                       {activeRunResult.passed ? 'Passed ✓' : 'Mismatch ✗'}
+                      {activeRunResult.runtime != null && ` (${activeRunResult.runtime}ms)`}
                     </span>
                   </div>
                   <pre
@@ -179,4 +220,3 @@ export const ConsolePanel: React.FC<ConsolePanelProps> = ({
     </div>
   )
 }
-

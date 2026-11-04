@@ -14,4 +14,5 @@ langchain-core
 langchain-google-genai
 celery
 redis
+fakeredis
 psycopg[binary]

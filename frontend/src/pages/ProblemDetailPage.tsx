@@ -42,8 +42,10 @@ export const ProblemDetailPage: React.FC = () => {
 
   // Sample test run state
   const [isRunningSample, setIsRunningSample] = useState(false)
+  const [customInput, setCustomInput] = useState('')
+  const [isCustomMode, setIsCustomMode] = useState(false)
   const [sampleRunResult, setSampleRunResult] = useState<{
-    status: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | 'Compilation Error'
+    status: 'Accepted' | 'Wrong Answer' | 'Runtime Error' | 'Compilation Error' | 'Time Limit Exceeded'
     results?: Array<{
       input: string
       expected: string
@@ -185,30 +187,36 @@ export const ProblemDetailPage: React.FC = () => {
     },
   })
 
-  // Run sample tests locally/lightweight
+  // Run sample tests against backend runner
   const handleRunSampleTests = async () => {
-    if (!problem?.test_cases) return
     setIsRunningSample(true)
     setSampleRunResult(null)
 
-    // Simulate execution delay
-    setTimeout(() => {
-      const isAccepted = currentCode.length > 50 && !currentCode.includes('// Naive')
-      const mockResults = problem.test_cases.map((tc) => ({
-        input: tc.input,
-        expected: tc.output,
-        actual: isAccepted ? tc.output : '0 0',
-        passed: isAccepted,
-        runtime: Math.floor(8 + Math.random() * 12),
-      }))
-
-      setSampleRunResult({
-        status: isAccepted ? 'Accepted' : 'Wrong Answer',
-        results: mockResults,
-        error: isAccepted ? undefined : 'Output mismatch on sample test 1.',
+    try {
+      const isCustom = isCustomMode && customInput.trim() !== ''
+      const sampleCases = problem?.test_cases?.filter((tc) => tc.is_sample !== false) || []
+      const res = await api.runCode({
+        problem_id: problemId,
+        language,
+        code: currentCode,
+        custom_input: isCustom ? customInput : undefined,
+        test_cases: isCustom
+          ? undefined
+          : sampleCases.length > 0
+          ? sampleCases.map((tc) => ({ input: tc.input, expected: tc.output }))
+          : undefined,
       })
+
+      setSampleRunResult(res)
+    } catch (err: any) {
+      console.error('Run code error:', err)
+      setSampleRunResult({
+        status: 'Runtime Error',
+        error: err?.message || 'Failed to execute code on test runner.',
+      })
+    } finally {
       setIsRunningSample(false)
-    }, 700)
+    }
   }
 
   // Copy sample test helper
@@ -510,6 +518,10 @@ export const ProblemDetailPage: React.FC = () => {
             testCases={problem.test_cases || []}
             isRunning={isRunningSample}
             lastRunResult={sampleRunResult}
+            customInput={customInput}
+            onCustomInputChange={setCustomInput}
+            isCustomMode={isCustomMode}
+            onToggleCustomMode={setIsCustomMode}
           />
 
           {/* Editor Action Bottom Bar */}

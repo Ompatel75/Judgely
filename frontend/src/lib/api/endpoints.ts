@@ -19,6 +19,7 @@ export const ENDPOINTS = {
 
   // Submissions & Judging
   SUBMIT: '/api/submissions/',
+  RUN_CODE: '/api/submissions/run',
   SUBMISSIONS_MY: '/api/submissions/',
   SUBMISSIONS_STATUS: '/api/submissions/me/status',
   SUBMISSION_DETAIL: (id: number | string) => `/api/submissions/${id}`,
